@@ -1,0 +1,737 @@
+USER MANUAL
+March 11th 2025
+We value feedback and ideas, so feel free to reach out.
+Please check the website for the latest firmware!
+THANK-YOU!
+Thank-you for adopting MEGAfm, the product of several years of work &
+play.
+MEGAfm offers a unique gritty texture that is uncommon for FM
+synthesisers, plus an unprecedented hands-on control of all the synth’s
+parameters.
+We hope that you will enjoy making music with MEGAfm as much as we
+have enjoy developing it!
+ABOUT MKII
+In September 2022 MEGAfm becomes MEGAfm MKII.
+This updated version is identical in appearance and functionality but it
+will include a pair of YM3438 chips instead of the YM2612.
+The YM3438 is a variant of the YM2612 that is identical in functionality
+and was featured in the Sega Megadrive II.
+The circuit layout has also been updated to grant access to the FM chips
+with minimal disassembly.
+Indeed the chips are now socketed (removable) and accessible by
+removing the bottom panel.
+This allows customers to install alternate FM chips (like the YM2612,
+modern alternatives or even custom sound chips).
+Customers even have the ability to mix different versions of FM chip as
+both slots can be configured individually.
+MEGAfm MKII features the same audio circuitry and warm analog
+distortion as the MKI, as a result both chips sound very similar inside of
+MEGAfm.
+The firmware will work identically on both versions.
+Please refer to the bottom of the manual for chip-changing instructions.
+YM2612/YM3438 Overview
+“The Yamaha 2612/3438 Frequency Modulation (FM) sound synthesis IC
+resembles the Yamaha 2151 (used in Sega’s coin-op machines) and the
+chips used in Yamaha’s synthesisers.
+It is famously known as the Sega Megadrive’s voice.
+An FM channel is capable of expressing, with a high degree of realism, a
+single note in almost any instrument’s voice. Chords are generally created
+by using multiple FM channels.
+The standard FM channels each have a single overall frequency and data
+for how to turn this frequency into the complex final wave form (the
+voice). This conversion process uses four dedicated channel components
+called ‘operators’, each possessing a frequency (a variant of the overall
+frequency), an envelope, and the capability to modulate its input using
+the frequency and envelope. The operator frequencies are offsets of
+integral multiples of the overall frequency.
+There are 6 FM channels. Channels 3 and 6, have the capability to use a
+totally separate frequency for each operator rather than offsets of integral
+multiples (ch3 special mode). This works well for sound effects and
+experimental instruments. “
+Operators
+There are four dedicated operators per voice which may be arranged in
+eight different configurations, called “algorithms”. Following is a diagram
+of the algorithms.
+Slots are indicated by shading.
+   
+Envelope Specification (now looping!)
+Understanding the envelopes
+The YM2612/3438 envelopes are powerful and original compared to
+the ADSR we are all used to, but they can be confusing at first.
+Since we are used to attack decay and release times taking longer as we
+increase their knobs, MEGAfm uses the "higher the fader the longer it
+takes" approach. As a result all the faders are decreasing the angles
+printed on the silkscreen as they are moved upwards, except for attack
+faders which increase it.
+For example:
+-during the AR (Attack Rate) Phase: The higher the fader, the longer it
+takes for the attack phase to complete aka for the volume to reach TL
+aka Total Level (rising fader = increasing the angle displayed on the
+silkscreen)
+-during the DR (Decay Rate) Phase: The higher the fader, the longer it
+takes for the decay phase to complete aka for the volume to reach SL
+aka Sustain Level (rising fader =  decreasing the angle displayed on the
+silkscreen)
+-during the SR (Sustain Rate) Phase: The higher the fader, the longer it
+takes for the level to fall from sl to zero (rising fader =  decreasing the
+angle displayed on the silkscreen)
+-during the RR (Release Rate) Phase: The higher the fader, the longer it
+takes for the release complete aka drop to zero after key release (rising
+fader = decreasing the angle displayed on the silkscreen)
+Below is the official description as found on the data sheets
+Thanks MAXIM for the excerpts: https://www.smspower.org/maxim/Documents/YM2612
+The sound starts when the key is depressed, a process called ‘key on’.
+The sound has an attack, a strong primary decay, followed by a slow
+secondary decay. The sound continues this secondary decay until the key
+is released, a process called ‘key off’. The sound then begins a rapid final 
+decay, representing for example a piano note after the key has been
+released and the damper has come down on the strings.
+The envelope is represented by the above amplitudes and angles, used
+in the above diagram are:
+Looping the envelopes
+Since firmware version 3.0, the four operator's envelopes can now loop
+individually, resulting in fascinating modulations of both dynamics (when
+looping the carriers) and timbre (when looping the modulators).
+To create an envelope loop, follow these steps:
+1. Move one of the faders associated with the desired envelope.
+2. Within a brief timeframe, you can activate the envelope loop
+using the LFO loop button.
+3. Additionally, you can control the looping direction of the
+envelope by utilizing the saw and triangle LFO waveform buttons. When
+the saw waveform is lit, the envelope loops from the attack phase to the
+release phase. On the other hand, when the triangle waveform is lit, the
+envelope loops in a ping pong manner.
+TL Total level, the highest amplitude of the waveform.
+AR Attack rate, the angle of initial amplitude increase. This can be made
+very steep if desired. The problem with slow attack rates is that if the
+notes are short, the release (called ‘key off’) occurs before the note has
+reached a reasonable level.
+DR The angle of initial amplitude decrease.
+SL The amplitude at which the slower amplitude decrease starts.
+SR The angle of secondary amplitude decrease. This will continue
+indefinitely unless ‘key off’ occurs.
+RR The final angle of amplitude decrease, after ‘key off’.
+Envelope Rate Scaling
+With the introduction of firmware version 3.6, we now have the capability
+to adjust the rate scaling for each operator. This feature speeds up
+envelope at higher note frequencies, creating an effect similar to that of a
+piano. It is particularly effective when using looping envelopes.
+How to Adjust Rate Scaling:
+ Press and hold the 'LOOP' button. This action enables the rate scaling
+adjustment mode.
+ While holding the 'LOOP' button, use any of the detune faders to
+change the rate scaling amount.
+Rate Scaling Range and Resolution:
+The rate scaling can be set within a range of 0 to 3.
+Preset Memory:
+Any adjustments made to the rate scaling of an operator are
+automatically saved within each preset.
+Voicing Section
+MEGAfm offers up to 12 voice polyphony.
+The 12 voices are spread across two YM2612/3438 chips.
+In all modes you can use the fat knob to detune the voices.
+Hold voicing mode button and the fat knob becomes glide.
+Glide knob determines the time it takes for each voice to change pitch
+when a new note is played.
+Mono Mode:
+When a single TS 6.35mm jack is plugged into output1, both chips are
+summed to output1.
+Stereo Mode:
+When a second TS 6.35mm jack is plugged into output2, the 2 chips will
+be split between outputs 1 and 2 (6 voices per chip/output)
+Voicing Modes
+There are several voicing modes available. Press the voicing button to
+change through them
+Poly12
+The Poly12 features a 12-voice polyphony that is distributed between two
+chips in an alternating left/right configuration.
+Wide6
+Both chips can play up to 6 notes but can be detuned with the fat knob
+Wide4 (all LEDs lit) and Wide3 (3 LEDs lit)
+Same as wide6 but limited to 4 & 3 voices respectively, always staggered
+Note: These modes are optional modes that can be activated using the
+web tool if unavailable
+Dual ch3
+YM2612/3438 offers a special mode where the 4 operators of channel3
+can be individually detuned to arbitrary frequencies as described above
+in the YM2612/3438 Overview. Recommended for experimental /
+percussive sounds.
+Dual ch3 has 2 possible modes: duo phonic (alternating between chip 1
+and 2) and monophonic stereo (firing both chips at once). Press LFO3
+chain button to toggle between modes. Display will show d3 for duo
+phonic mode and S3 for stereo mode.
+Unison
+All voices are played at once in unison and detuned using the fat knob.
+Turn the fat knob clockwise to gradually detune all 12 voices. At
+maximum fat, the 12 voices are arranged in a chord. 3 Note priority
+modes are available: Highest, Lowest (factory default) and Last note
+priority. Press retrig in setup mode to toggle between the 3 modes.
+Display will show Hi, Lo(w) or LA(st) accordingly. 
+Auto Chord
+To use the auto chord feature, please follow these instructions:
+1- Hold down a chord on your MIDI keyboard.
+2 - While still holding the chord, press and hold the REC and press the
+voicing button to engage the auto chord feature. To free up your hands
+for pressing buttons, we recommend using the sustain pedal.
+If you wish to disengage auto chord, simply repeat the same button
+presses as before. Note that if you activate auto chord without holding
+down any keys, MEGAfm will select a chord from its built-in selection.
+Fat
+Adjust the 'Fat' knob to precisely adjust the tuning of all 12 voices in any
+voice mode. When in Unison mode, you have the ability to manipulate
+the voices from a slightly detuned configuration, commonly referred to as
+'fat,' all the way to a grand chord similar to the sound of THX.
+For all other modes, the voices can be detuned either by one semitone
+or one octave. Additionally, there are two distinct tuning setups available
+for you to choose from. Please refer to the setup and tool guide to learn
+how to select between these two ranges and tuning options.
+Glide
+When you hold the voicing button the fat knob becomes glide. Adding
+glide increases the time it takes each voice to reach its new pitch.
+Volume
+Adjust the volume of the current preset by utilizing the dedicated volume
+knob. It is important to note that a digital potentiometer is employed to
+regulate the volume, enabling it to be saved and remembered between
+different presets.
+However, it is worth mentioning that digital potentiometers can produce
+an audible clicking noise known as 'zipper noise' when the values are
+changed. To minimize this noise, the volume is only updated after the
+knob has been adjusted, not during the adjustment process. Therefore,
+kindly allow a quarter of a second for the volume to change accordingly.
+Additionally, you can choose to bypass the preset volume option, which
+will allow the volume knob to remain fully manual.
+Please refer to the settings & tool chapter for more details
+Preset tuning
+Hold voicing and use the vol/tune knob to tune your preset within a 1
+octave range.
+If you need finer tuning precision use the fat/glide knob which allows for
+1 semitone range.
+Important: you must first move the vol/tune knob to enable the finer
+tuning & the voicing button must be held during all tuning.
+Preset Octave Tranpose
+When you hold the voicing button you can use the preset up and down
+buttons to transpose the preset up to 3 octaves.
+Algorithms & Feedback
+Use the algorithm knob to select any of the 8 algorithms and the
+feedback knob to set the amount of operator1 feedback.
+Note: both parameters can be modulated by LFO!
+Vibrato
+Use the depth knob to add vibrato to the overall pitch of MEGAfm.
+Use the vibrato rate knob to set the vibrato’s speed.
+The vibrato can be configured to sync to incoming MIDI clock at 8
+different speeds, please refer to SETUP instructions for more details.
+Arpeggiator and Sequencer
+The arpeggiator has 7 modes:
+Up (shown as “UP” on the numeric display)
+Down (shown as “dn” on the numeric display)
+Up/Down aka pendulum (shown as “Ud” on the numeric display)
+Random1 (shown as “r1” on the numeric display)
+The arpeggiator chooses and plays any of the held keys at random.
+Random2 (shown as “r2” on the numeric display)
+The arpeggiator chooses and plays any notes at random.
+Sequencer1 and 2 (shown as “S1” and “S2” on the numeric display)
+The arpeggiator acts as a sequencer playing up to 16 notes that can be
+recorded via MIDI.
+In S2 mode, the sequencer avances a step every time a key is pressed
+and not in S1 Similarly to a Casio VL Tone.
+Note: Since firmware 4.0 the arp is available in all voicing modes!
+Recording a sequence
+To record a sequence press rec to activate recording mode. The rec LED
+will flash.
+Now play up to 16 notes via MIDI. Each preset can store up to 16 notes.
+Every time you input a note, the step recorder will advance and the
+numeric display will show the current step.
+You can use the preset up button to skip a step. No note will be played.
+You can also go back a step with the preset down button if you wish to
+correct a note.
+The arpeggiator can be set to sync to incoming MIDI clock at 8 different
+speeds defined by the rate knob. Please refer to Setup for details.
+Modulators ( LFO 1 to 3)
+Any knob or fader can be modulated by up to 3 LFO modulators at once.
+To link a knob or fader to an LFO
+move a knob or fader then press a chain link button.
+Click the chain button a second time to unlink a knob or fader
+from an LFO. The LED above the chain button indicates whether
+the modulator is linked or not. Each knob or fader can link to up
+to 3 LFOs at once.
+To unlink all the knobs/faders from an LFO
+hold the chain button for 4 seconds, until the letters CL appear on the
+numeric display.
+Selecting an LFO waveform
+To select any of the 3 LFOs simply
+move one of the LFO rate or
+depth knobs.  
+Use the 4 waveform buttons to select a waveform. The saw can be
+converted to a ramp. Press the saw button several times to toggle
+between version. (display will indicate Sa(w) or rA(mp) accordingly.
+The Square can be inverted (high for the first or second half of the LFO
+cycle), press the square button to invert it. 
+LFO depth
+Set the depth of an LFO with its depth knob. This defines the amount of
+effect the LFO will have on the associated knobs or faders.
+LFO rate
+To set the LFO rate, use the rate knob. LFOs can sync to MIDI clock and
+offer 10 tempo divisions (4 bars to 1/32 of a bar). The LFO waveform LED
+displays the rate. Note that LFOs can modulate other LFOs but not
+themselves. Please refer to the SETUP instructions for further details on
+how to sync the LFO to MIDI clock.
+LFO1 polyphonic velocity mode.
+Since firmware 4.0 you have the option to modulate any fader linked to
+LFO1 polyphonically (per note) with velocity allowing you to control the
+volume or timbre of individual notes.
+To activate LFO1 velocity enter setup mode and turn the LFO1 depth
+knob beyond 50%.
+Note: The Rate knob is disabled if LFO1 is set to be overridden by
+Velocity (“Ve” is displayed as a reminder when the rate knob is moved).
+The LFO1 depth knob sets the velocity modulation amplitude.
+LFO3 polyphonic aftertouch mode.
+Since firmware 4.0 you have the option to modulate any fader linked to
+LFO3 polyphonically (per note) with key pressure (aka aftertouch)
+allowing you to control the volume or timbre of individual notes.
+To activate LFO3 aftertouch enter setup mode and turn the LFO3 depth
+knob beyond 50%.
+Note: The LFO3 rate knob is disabled if LFO3 is set to be controlled by
+Aftertouch (“at” is displayed as a reminder when the rate knob is moved).
+The LFO3 depth knob sets the maximum amplitude of the modulation
+retrig
+When this feature is active each keypress will retrigger the LFO from the
+beginning of its cycle. Otherwise the LFO will only trigger on the first key.
+loop
+When this feature is active the LFO will loop endlessly instead of in a oneshot manner.
+Looping noise
+When an LFO is set to noise, it can send a loop through a table of
+randomly generated values. The table length can be 8, 16, 32, or infinite
+values. Press the noise waveform multiple times to set the table length.
+The screen will show 8, 16,32 or blank (a new random). Every time you
+press the noise waveform, the tables are regenerated.
+The table length setting is stored globally for each LFO.
+Presets
+MEGAfm has 600 a preset memory capacity arranged in six banks of 100
+presets.
+MEGAfm currently ships with 50 factory presets (0-49) organised
+according to the following chart.
+Each preset can be edited and stored and preset banks can be
+transferred to and from a computer via MIDI SYSEX.
+Misc 0-9
+Bass 10-19
+Lead 20-29
+Pads 30-38
+Rhythmic 39-44
+SFX 45-49
+Loading a Preset
+To load a preset, press the preset up or down buttons. In order to switch
+between banks, press the preset up or down button, and within three
+seconds, use the six LFO waveform buttons to select the desired bank.
+During this time, the current bank will flash to indicate that a change is
+being made. The preset number will automatically display after a couple
+of seconds without touching knobs or faders.
+Saving a preset
+You have the ability to store the current preset into any of the available
+100 slots of the 6 banks. To initiate the saving process, simultaneously
+press the preset up and down buttons to enter the save mode.
+The numeric display will then begin to flash the current slot number,
+indicating that the preset is ready to be saved. At this point, a threesecond countdown will begin, automatically saving the preset into the
+same slot. However, if you wish to bypass the countdown and
+immediately save the preset, simply press the arp rec button.
+You can also cancel the save process by pressing reset before the
+countdown expires.
+Moreover, you can alter the destination slot by pressing the preset up or
+down buttons. You can also alter the destination bank by pressing the 6
+LFO waveform buttons. Each time you select a new slot or bank,
+the three-second timer will be reset. Once you have successfully chosen
+the desired slot number, you may press rec button to confirm the save, or
+simply wait for a few seconds until the numeric display stops flashing.
+Preset reset / panel update
+Occasionally, starting afresh can be quite refreshing! To replace the
+current preset with preset 0, simply press the reset button at any time.
+Once pressed, the numeric display will indicate "P0" to confirm that
+preset zero has been loaded.
+Furthermore, if you press the reset button a second time, MEGAfm will
+read all the faders and knobs on the control panel and match them with
+the settings on the device. The numeric display will then indicate "PA" to
+signify that the panel settings have been restored.
+Preset randomiser
+Hold reset a couple seconds to completely randomise your preset,
+anything could happen!
+Setup Mode & MIDI Tool
+Hold voicing at startup or anytime for 3 seconds to enter setup mode.
+“SE” appears on the numeric display
+LED Brightness
+Turn the vibrato depth knob to adjust brightness
+LFO1 to 3 sync to incoming MIDI clock
+Turn the respective LFO rate knob to choose whether to link LFO1,2 or 3
+to the MIDI clock.
+Above 12 o clock the setting is on, below the setting is off.
+The setting is indicated by ON/OF on the numeric display
+Vibrato sync to incoming MIDI clock
+Turn the vibrato rate knob to choose whether to link the vibrato to the
+MIDI clock.
+Above 12 o clock the setting is on, below the setting is off.
+The setting is indicated by ON/OF on the numeric display
+Velocity controls LFO1
+Turn the lfo depth knob to choose whether to control lfo1 with MIDI
+velocity. With this option activated, the MIDI velocity will override LFO1.
+Use the depth knob to adjust the amount of effect.
+Above 12 o clock the setting is on, below the setting is off.
+The setting is indicated by ON/OF on the numeric display
+The numeric display will indicate “Ve” followed by “On” or “Of”
+Mod wheel controls LFO2
+Turn the LFO2 depth knob to choose whether to control LFO2 with the
+mod wheel. With this option activated, the mod wheel (CC1) will control
+the depth of LFO2 when the rate of LFO2 is above zero. When the rate is
+zero (stopped LFO) the mod wheel will override the LFO and directly
+modulate all parameters associated to the LFO. Use the depth knob to
+adjust the amount of effect.
+Above 12 o clock the setting is on, below the setting is off.
+The setting is indicated by ON/OF on the numeric display
+The numeric display will indicate “C1” (for MIDI CC1) followed by “On”
+or “Of”
+MIDI Aftertouch controls LFO3
+Turn the LFO3 depth knob to choose whether to control LFO3 with the
+mod wheel. With this option activated, MIDI aftertouch will override
+LFO3 and directly modulate all parameters associated to the LFO. Use
+the depth knob to adjust the amount of effect.
+Above 12 o clock the setting is on, below the setting is off.
+The setting is indicated by ON/OF on the numeric display
+The numeric display will indicate “At” followed by “On” or “Of”
+Arp sync to incoming MIDI clock
+Turn the arp rate knob to choose whether to link the arp to the MIDI
+clock.
+Preset Volume on/off
+Turn the volume knob to turn preset volume loading on or off.
+When set to off, the preset volume will be ignored when changing preset.
+Above 12 o clock the setting is on, below the setting is off.
+The setting is indicated by ON/OF on the numeric display
+MIDI THRU
+Press the LFO1 link button to toggle MIDI THRU on/off.
+When on, all incoming MIDI is sent to the MIDI output.
+By default this setting is OFF.
+Important: When MIDI Thru is ON, MEGAfm will no longer generate MIDI
+& will only echo the incoming MIDI - it will no longer transmit on preset
+change or fader movement for example.
+Midi Channel ,Pitch bend up & down Learn
+In setup mode you can set the input channel simply by sending MEGAfm
+a NOTE ON message on any midi channel. When a new Midi channel is
+registered, it is displayed on the numeric display after the letters “Ch”
+MEGAfm can also learn the pitch bend ranges.
+Pitch up and down can be any value from 1 to
+48. Hold any key then press a key above the
+first key to define the pitch bend up range or a
+key key below it to define the pitch down
+range (without releasing the first key).
+For example if you wish for MEGAfm to bend
+up 2 semitones and down 5 semitones, hold C
+and press D then G without releasing C.
+Note Priority in unison voicing mode.
+Press the retrig button to choose:
+-Low Note priority (Lo on screen). This is the factory default and most
+-high Note priority (hi on screen)
+-Last Note Priority
+Ch3 special mode: Dual or Stereo
+Press LFO3 link button to toggle between these modes, refer to voicing
+modes page 6 for details about this special mode.
+Fat mode range (in all modes but unison)
+When you are in all voice modes but unison, the fat knob will detune the
+12 voices in 2 possible ways: by 1 semitone (set the fat/glide knob below
+51%) or by 1 octave (set the fat/glide knob above 50%).
+The LED display will indicated 1S (1 semi) or 1o (1 octave) as you adjust
+the setting.
+MultiChannel MPE mode
+MEGAfm has a special multichannel mode that allows you to control it
+with an MPE device with multichannel pitch bends, in this mode you can
+continuously bend each voice within up to 4 octaves. 
+Press arp mode button to toggle this special mode on or off. When the
+LED is on, MEGAfm is in normal single channel mode, when LED is off
+MPE mode is active. When you choose MPE mode, the pitch bend range
+is set to +/-48semi by default, you are free to change it before exiting
+setup.
+IMPORTANT: MPE mode only uses poly12 voice mode at this time.
+The voice mode button won’t respond when MPE mode is active…
+Parameter Pickup
+This function allows the faders and knobs to update the
+synthesiser only when they have first reached the preset
+value. When Parameter Pickup is enabled, the LED screen
+will indicate if the preset value is higher or lower than the
+current position of the knob by use of 2 lines at the top or
+bottom of the display. Once the preset value is reached,
+the lines will be replaced by numbers and the synthesiser
+will update.
+Press the second LFO link button to toggle PP on or off.
+Exit setup
+Press voice mode button again to exit setup.
+MIDI Tool
+A MIDI tool is available for easily configuring parameters within Blast Beats.
+The tool is hosted on a web page and requires no drivers or software
+downloads. However, it does require a WebMIDI-enabled web browser
+(Google Chrome is a good example).
+Ensure that you have the latest firmware installed for the tool to function
+correctly.
+Visit twistedelectrons.com/tool to access the tool.
+To begin, select the MIDI inputs and outputs connected to MEGAfm, then
+press the Read button. The tool will synchronize with MEGAfm, after which
+you can freely make any changes.
+IMPORTANT: press the Write button to save any changes or they will be
+lost! 
+MIDI Implementation
+MEGAfm responds to the following MIDI controls.
+You can also control it with the Plugin (available for free download on the
+website) which uses the following MIDI parameters. Note some volume
+related parameters have been disabled after reports of Ableton Live 11
+muting them unexpectedly.
+Parameter MIDI CC Range
+GLOBAL
+FM Algorithm 4 1-8
+Feedback 3 0-127
+Fat 28 0-127
+OPERATOR 1
+Op1 Total Level 19 0-127
+Op1 Detune 18 0-127
+Op1 Multiplier 27 0-127
+Op1 Attack Rate 29 0-127
+Op1 Decay Rate 21 0-127
+Op1 Sustain Level 25 0-127
+Op1 Sustain Rate 17 0-127
+Op1 Release Rate 30 0-127
+OPERATOR 2
+Op2 Total Level 40 0-127
+Op2 Detune 31 0-127
+Op2 Multiplier 32 0-127
+Op2 Attack Rate 36 0-127
+Op2 Decay Rate 44 0-127
+Op2 Sustain Level 42 0-127
+Op2 Sustain Rate 34 0-127
+Op2 Release Rate 11 0-127
+Parameter
+OPERATOR 3
+Op3 Total Level 16 0-127
+Op3 Detune 20 0-127
+Op3 Multiplier 24 0-127
+Op3 Attack Rate 49 0-127
+Op3 Decay Rate 50 0-127
+Op3 Sustain Level 51 0-127
+Op3 Sustain Rate 45 0-127
+Op3 Release Rate 37 0-127
+OPERATOR 4
+Op3 Total Level 38 0-127
+Op4 Detune 47 0-127
+Op4 Multiplier 39 0-127
+Op4 Attack Rate 46 0-127
+Op4 Decay Rate 33 0-127
+Op4 Sustain Level 41 0-127
+Op4 Sustain Rate 43 0-127
+Op4 Release Rate 35 0-127
+LFO
+LFO1 Rate 15 0-127
+LFO1 Depth 12 0-127
+LFO1 Depth (When Active in setup) Velocity 0-127
+LFO2 Rate 10 0-127
+LFO2 Depth 9 0-127
+LFO2 Depth (When Active in setup) 1 (mod wheel) 0-127
+LFO3 Rate 14 0-127
+LFO3 Depth 2 0-127
+LFO3 Depth (When Active in setup) Aftertouch 0-127
+ARP
+ARP Rate 6 0-127
+ARP Range 5 0-127
+Parameter MIDI CC Range
+Preset Upload/Download (SYSEX
+DUMP)
+MEGAfm holds 600 presets in its memory. The presets are divided into 6
+banks of 100 presets.
+You can transfer 50 presets at a time (or half a bank) to and from
+MEGAfm via MIDI SYSEX.
+To download a half bank from MEGAfm to a computer hold preset
+DOWN at startup. Then choose a BANK using the 6 LFO waveform
+buttons. Press the BANK button to toggle between A (first half / presets
+0-49) or B (second half / presets 50-99).
+When ready press preset DOWN again to send the presets.
+MEGAfm will reboot when finished.
+To upload a half bank to MEGAfm from a computer hold preset UP at
+startup. Then choose a BANK using the 6 LFO waveform buttons. Press
+the BANK button again to toggle between A (first half / presets 0-49) or B
+(second half / presets 50-99).
+When ready press preset UP again to prepare MEGAfm for the presets.
+Now send the presets from your computer via a recommended MIDI
+SYSEX software. MEGAfm count to 99 while it stores the presets and will
+reboot when finished.
+VIBRATO
+Arp Rate 48 0-127
+Arp Depth 13 0-127
+Parameter MIDI CC Range
+Firmware update
+You can transfer new (or old) firmware to MEGAfm via MIDI SYSEX.
+Hold Arp MODE at startup. This will boot MEGAfm in update mode with
+all LEDS on. Now transfer the SYSEX file with recommended software via
+a MIDI interface. The LEDS will blink during the transfer, and MEGAfm
+will reboot when complete.
+For SYSEX transfers we recommend SYSEX LIBRARIAN for MAC and
+MIDIOX for Windows. Here is a MIDIOX update demo video
+IMPORTANT: It is crucial to ensure that
+your SYSEX software is specifically
+configured with a 64-byte buffer setting.
+Any deviations from this setting may result
+in update failures.
+Some MIDI interfaces require a larger Delay
+After F7 setting for a successful transfer.
+It is also recommended to close the DAW
+or any other applications that send and
+receive MIDI during a software update.
+Note: the firmware version is displayed as X.X for a half second at startup
+for revisions 1.1 and onwards.
+It is reported that MIDI SYSEX transfer utility also works well on PC. The
+delay time must be set to 150 milliseconds.
+Important: The first time you update from 2.4 and below to 3.0 and
+above, MegaFM will automatically reorganise some preset data. The
+message “CL” will appear during this process that can take up to 30
+seconds.
+Firmware files are independent. You can safely install any version on to
+any other, earlier or later.
+Factory Reset
+If you wish to restore the device to factory state, hold reset at startup.
+This will erase internal EEPROM and replace presets 0-50 with built-in
+factory presets. During the procedure MEGAfm will display “RE” for
+reset.
+Power specifications
+The recommended PSU is DC 9V 450mA Centre Positive
+Frequently Asked Questions
+1: Q: I can no longer change voice mode!
+ A: Please check that you haven’t activated MPE mode in setup.
+Indeed MPE mode only uses poly 12 mode.
+If you wish to use other voice modes Please return setup and press arp
+mode to turn MPE off ( display should show 1C aka single channel).
+Changing Chips (MKII only)
+If you own a MEGAfm MKII you have the ability to change the chips.
+This gives you the option to remove the YM3438 and insert a YM2612
+instead (rendering the unit identical to MKI).
+To open MEGAfm simply turn it upside down and remove the 7 screws
+from underneath. The whole bottom part of the cassis can now be
+removed and set aside. Loosen the 3 audio jack nuts if if it is still tight.
+YM2612 chips require a different set of resistors which are included on
+the circuit board.
+Following the instructions printed
+under the circuit board we simply
+add some solder across the 4 jumper
+pads to activate YM2612 mode and
+remove the solder to re-activate the
+default YM3438 mode.
+Once solder is added to the jumper pads you can easily open and close
+them with a horizontal or vertical brush of your soldering iron.
+Chip1 and chip2 are completely independent so you can safely mix
+A
+A
+A
+A
+A
+A
+B
+B
+B
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+A
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+B
+types.
