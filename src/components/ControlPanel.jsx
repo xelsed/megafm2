@@ -115,6 +115,15 @@ const ControlPanel = () => {
   const [mpeMode, setMpeMode] = useState(false);
   const [pitchBendRange, setPitchBendRange] = useState(48); // Default to max
   
+  // LFO chain status
+  const [lfoChainStatus, setLfoChainStatus] = useState({
+    lfo1: { active: false, linkedParam: null },
+    lfo2: { active: false, linkedParam: null },
+    lfo3: { active: false, linkedParam: null },
+  });
+  const [lastModParameterInfo, setLastModParameterInfo] = useState(null);
+  const [modLinkActive, setModLinkActive] = useState(false);
+  
   // FM synthesis controls
   const [currentFmAlgorithm, setCurrentFmAlgorithm] = useState('algo1'); // Default to algorithm 1
   
@@ -215,7 +224,7 @@ const ControlPanel = () => {
     }
   };
   
-  // Handle LFO chain button click - link or unlink parameter
+  // Handle LFO chain button click for parameter linking
   const handleLfoChainButtonClick = (lfoNumber) => {
     if (!midiConnected || !midiOutput) {
       console.warn('Cannot link parameters - MIDI not connected');
@@ -3867,34 +3876,28 @@ const ControlPanel = () => {
                         
                         <div style={{
                           fontSize: '12px',
-                          color: '#ccc',
+                          color: modLinkActive ? '#ff9' : '#ccc',
                           fontStyle: 'italic',
-                          marginBottom: '8px'
+                          marginBottom: '8px',
+                          padding: '4px',
+                          background: modLinkActive ? 'rgba(100, 100, 0, 0.3)' : 'transparent',
+                          borderRadius: '4px',
+                          transition: 'all 0.3s ease'
                         }}>
-                          Move a parameter control, then click to link LFO {activeLFO}
+                          {modLinkActive ? '⚠️ Please move a parameter first, then try again' : 'Move a parameter control, then click to link LFO ' + activeLFO}
                         </div>
                         
                         <button
-                          onClick={() => {
-                            // This would connect the last moved parameter to the current LFO
-                            // In a real implementation, this would require tracking the last moved parameter
-                            // and sending an appropriate MIDI message to link it
-                            console.log(`Link button clicked for LFO ${activeLFO}`);
-                            
-                            // For demonstration, let's pretend we're linking parameters
-                            alert(`In a real implementation, this would link the last moved parameter to LFO ${activeLFO}. The MEGAfm requires moving a parameter then pressing a chain button to create the link.`);
-                            
-                            // To fully implement this, we would need:
-                            // 1. A mechanism to track the last moved parameter
-                            // 2. A way to store LFO-parameter links in state
-                            // 3. A MIDI protocol to communicate these links to the MEGAfm
-                            
-                            // This would also need to track linked parameters for the UI display
-                          }}
+                          onClick={() => handleLfoChainButtonClick(activeLFO)}
                           style={{
                             ...glowStyles.button,
                             width: '100%',
-                            background: 'linear-gradient(to right, #50c, #70a)',
+                            background: lfoChainStatus[`lfo${activeLFO}`]?.active 
+                              ? 'linear-gradient(to right, #00c0a0, #00a0c0)'
+                              : 'linear-gradient(to right, #50c, #70a)',
+                            boxShadow: lfoChainStatus[`lfo${activeLFO}`]?.active
+                              ? '0 0 15px rgba(0, 200, 200, 0.8)'
+                              : '0 0 10px rgba(100, 0, 200, 0.5)',
                             fontSize: '13px'
                           }}
                         >
@@ -3943,7 +3946,7 @@ const ControlPanel = () => {
                                       cursor: 'pointer',
                                       marginLeft: '4px'
                                     }}
-                                    onClick={() => console.log('Would unlink Algorithm from LFO1')}
+                                    onClick={() => handleLfoChainButtonClick(1)}
                                   >
                                     ×
                                   </button>
@@ -3965,7 +3968,7 @@ const ControlPanel = () => {
                                       cursor: 'pointer',
                                       marginLeft: '4px'
                                     }}
-                                    onClick={() => console.log('Would unlink Feedback from LFO1')}
+                                    onClick={() => handleLfoChainButtonClick(1)}
                                   >
                                     ×
                                   </button>
@@ -3992,7 +3995,7 @@ const ControlPanel = () => {
                                       cursor: 'pointer',
                                       marginLeft: '4px'
                                     }}
-                                    onClick={() => console.log('Would unlink OP1 Level from LFO2')}
+                                    onClick={() => handleLfoChainButtonClick(2)}
                                   >
                                     ×
                                   </button>
@@ -4014,7 +4017,7 @@ const ControlPanel = () => {
                                       cursor: 'pointer',
                                       marginLeft: '4px'
                                     }}
-                                    onClick={() => console.log('Would unlink OP3 Level from LFO2')}
+                                    onClick={() => handleLfoChainButtonClick(2)}
                                   >
                                     ×
                                   </button>
@@ -4036,8 +4039,22 @@ const ControlPanel = () => {
                           {/* Clear all links button */}
                           <button
                             onClick={() => {
-                              console.log(`Would clear all links for LFO ${activeLFO}`);
-                              alert(`This would clear all parameter links for LFO ${activeLFO}. In the real MEGAfm, this is done by holding the chain button for 4 seconds.`);
+                              if (!midiConnected || !midiOutput) {
+                                console.warn('Cannot clear links - MIDI not connected');
+                                return;
+                              }
+                              
+                              // Clear all links for this LFO
+                              unlinkParameterFromLFO(midiOutput, activeLFO, MEGAFM_CHANNEL);
+                              
+                              // Update the UI state
+                              const lfoKey = `lfo${activeLFO}`;
+                              setLfoChainStatus({
+                                ...lfoChainStatus,
+                                [lfoKey]: { active: false, linkedParam: null }
+                              });
+                              
+                              console.log(`Cleared all parameter links for LFO ${activeLFO}`);
                             }}
                             style={{
                               background: 'rgba(100, 0, 0, 0.4)',
