@@ -115,14 +115,7 @@ const ControlPanel = () => {
   const [mpeMode, setMpeMode] = useState(false);
   const [pitchBendRange, setPitchBendRange] = useState(48); // Default to max
   
-  // LFO chain status
-  const [lfoChainStatus, setLfoChainStatus] = useState({
-    lfo1: { active: false, linkedParam: null },
-    lfo2: { active: false, linkedParam: null },
-    lfo3: { active: false, linkedParam: null },
-  });
-  const [lastModParameterInfo, setLastModParameterInfo] = useState(null);
-  const [modLinkActive, setModLinkActive] = useState(false);
+  // This section was removed to fix duplicate declaration
   
   // FM synthesis controls
   const [currentFmAlgorithm, setCurrentFmAlgorithm] = useState('algo1'); // Default to algorithm 1
@@ -165,7 +158,9 @@ const ControlPanel = () => {
   const handleMegaFMParamChange = (cc, value, paramName = null) => {
     if (midiConnected && midiOutput) {
       // Send parameter change and track it for modulation purposes
-      // The enhanced sendCC function will handle parameter tracking
+      // The enhanced sendCC function will handle parameter tracking with modUtils.js
+      // The paramName is essential for LFO chain linking functionality
+      // so that users can see which parameter is linked to which LFO
       sendCC(midiOutput, cc, value, MEGAFM_CHANNEL, paramName);
     }
   };
@@ -3901,7 +3896,9 @@ const ControlPanel = () => {
                             fontSize: '13px'
                           }}
                         >
-                          Link Parameter to LFO {activeLFO}
+                          {lfoChainStatus[`lfo${activeLFO}`]?.active 
+                            ? `Unlink Parameter from LFO ${activeLFO}`
+                            : `Link Parameter to LFO ${activeLFO}`}
                         </button>
                         
                         {/* Linked parameters display */}
@@ -3921,117 +3918,42 @@ const ControlPanel = () => {
                             Linked Parameters:
                           </div>
                           
-                          {/* This would be generated from actual state in a full implementation */}
+                          {/* Generated dynamically based on actual LFO chain status */}
                           <div style={{
                             display: 'flex',
                             flexWrap: 'wrap',
                             gap: '5px'
                           }}>
-                            {activeLFO === 1 && (
-                              <>
-                                <span style={{
-                                  fontSize: '11px',
-                                  background: 'rgba(60, 0, 100, 0.6)',
-                                  padding: '2px 6px',
-                                  borderRadius: '3px',
-                                  color: 'white'
-                                }}>
-                                  Algorithm
-                                  <button 
-                                    style={{
-                                      background: 'none',
-                                      border: 'none',
-                                      color: 'rgba(255, 100, 100, 0.8)',
-                                      fontSize: '9px',
-                                      cursor: 'pointer',
-                                      marginLeft: '4px'
-                                    }}
-                                    onClick={() => handleLfoChainButtonClick(1)}
-                                  >
-                                    ×
-                                  </button>
-                                </span>
-                                <span style={{
-                                  fontSize: '11px',
-                                  background: 'rgba(60, 0, 100, 0.6)',
-                                  padding: '2px 6px',
-                                  borderRadius: '3px',
-                                  color: 'white'
-                                }}>
-                                  Feedback
-                                  <button 
-                                    style={{
-                                      background: 'none',
-                                      border: 'none',
-                                      color: 'rgba(255, 100, 100, 0.8)',
-                                      fontSize: '9px',
-                                      cursor: 'pointer',
-                                      marginLeft: '4px'
-                                    }}
-                                    onClick={() => handleLfoChainButtonClick(1)}
-                                  >
-                                    ×
-                                  </button>
-                                </span>
-                              </>
-                            )}
-                            
-                            {activeLFO === 2 && (
-                              <>
-                                <span style={{
-                                  fontSize: '11px',
-                                  background: 'rgba(60, 0, 100, 0.6)',
-                                  padding: '2px 6px',
-                                  borderRadius: '3px',
-                                  color: 'white'
-                                }}>
-                                  OP1 Level
-                                  <button 
-                                    style={{
-                                      background: 'none',
-                                      border: 'none',
-                                      color: 'rgba(255, 100, 100, 0.8)',
-                                      fontSize: '9px',
-                                      cursor: 'pointer',
-                                      marginLeft: '4px'
-                                    }}
-                                    onClick={() => handleLfoChainButtonClick(2)}
-                                  >
-                                    ×
-                                  </button>
-                                </span>
-                                <span style={{
-                                  fontSize: '11px',
-                                  background: 'rgba(60, 0, 100, 0.6)',
-                                  padding: '2px 6px',
-                                  borderRadius: '3px',
-                                  color: 'white'
-                                }}>
-                                  OP3 Level
-                                  <button 
-                                    style={{
-                                      background: 'none',
-                                      border: 'none',
-                                      color: 'rgba(255, 100, 100, 0.8)',
-                                      fontSize: '9px',
-                                      cursor: 'pointer',
-                                      marginLeft: '4px'
-                                    }}
-                                    onClick={() => handleLfoChainButtonClick(2)}
-                                  >
-                                    ×
-                                  </button>
-                                </span>
-                              </>
-                            )}
-                            
-                            {activeLFO === 3 && (
+                            {lfoChainStatus[`lfo${activeLFO}`]?.active && lfoChainStatus[`lfo${activeLFO}`]?.linkedParam ? (
+                              <span style={{
+                                fontSize: '11px',
+                                background: 'rgba(60, 0, 100, 0.6)',
+                                padding: '2px 6px',
+                                borderRadius: '3px',
+                                color: 'white'
+                              }}>
+                                {lfoChainStatus[`lfo${activeLFO}`].linkedParam.name}
+                                <button 
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'rgba(255, 100, 100, 0.8)',
+                                    fontSize: '9px',
+                                    cursor: 'pointer',
+                                    marginLeft: '4px'
+                                  }}
+                                  onClick={() => handleLfoChainButtonClick(activeLFO)}
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ) : (
                               <span style={{
                                 fontSize: '11px',
                                 color: '#999',
                                 fontStyle: 'italic'
                               }}>
-                                No parameters linked to LFO 3
+                                No parameters linked to LFO {activeLFO}
                               </span>
                             )}
                           </div>

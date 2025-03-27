@@ -46,13 +46,14 @@ const Visualizer = () => {
     }
   }, [camera, cameraPosition, scene, colorScheme]);
   
+  // Get tempo from Redux store - must be outside useFrame to follow React hooks rules
+  const tempo = useSelector(state => state.algorithm?.tempo || 120);
+  
   // Handle auto-rotation and tempo synchronization of the visualization
   useFrame((state, delta) => {
     if (!groupRef.current) return;
     
-    // Access tempo from closure rather than using useSelector in useFrame
-    // Using useSelector inside useFrame causes performance issues
-    const tempo = useSelector(state => state.algorithm?.tempo || 120);
+    // Use tempo from the outer scope (closure)
     const normalizedDelta = delta * (tempo / 120); // Scale by tempo ratio
     
     // Apply auto-rotation if enabled
