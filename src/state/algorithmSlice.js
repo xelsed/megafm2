@@ -26,21 +26,21 @@ const initialState = {
       enabled: false,
       parameters: {
         rule: 30,                 // Cellular automaton rule (0-255) for 1D mode
-        type: '1D',               // Type of cellular automaton: '1D' or 'gameOfLife'
-        initialCondition: 'center', // Initial state: center, random, custom, glider, etc.
+        type: 'gameOfLife',       // Type of cellular automaton: '1D' or 'gameOfLife'
+        initialCondition: 'random', // Initial state: center, random, custom, glider, etc.
         width: 16,                // Width of the automaton grid
         height: 16,               // Height for 2D grid (Game of Life)
         threshold: 0.5,           // Threshold for converting cells to notes
         iterations: 32,           // Number of iterations to evolve the automaton
-        density: 0.3,             // Initial cell density for random patterns
+        density: 0.4,             // Initial cell density for random patterns
         velocityMap: 'linear',    // How to map cell position to velocity: linear, distance, random
         harmonies: true,          // Whether to generate harmony notes
         emphasizeBirths: true,    // Whether to emphasize newly born cells with higher velocity
         noteRange: 'mid',         // Pitch range: low, mid, high
         scale: 'pentatonic',      // Musical scale to use for mapping
-        performanceMode: 'auto',  // Performance level: low, medium, high, auto
-        buchlaMode: false,        // Buchla 252e-inspired sequencing mode
-        preferredPatterns: ['buchla']  // Preferred patterns for initialization
+        performanceMode: 'high',  // Performance level: low, medium, high, auto
+        buchlaMode: true,         // Buchla 252e-inspired sequencing mode
+        preferredPatterns: ['glider', 'blinker']  // Preferred patterns for initialization
       }
     },
     sequential: {
@@ -111,7 +111,9 @@ export const algorithmSlice = createSlice({
     },
     setTempo: (state, action) => {
       state.tempo = action.payload;
-      state.noteInterval = 60000 / action.payload / 4; // 16th notes
+      // Calculate noteInterval using quarter notes instead of 16th notes for better timing
+      state.noteInterval = Math.round(60000 / action.payload); // quarter notes
+      console.log(`Tempo set to ${action.payload} BPM, note interval: ${state.noteInterval}ms`);
     },
     setPlaying: (state, action) => {
       state.isPlaying = action.payload;

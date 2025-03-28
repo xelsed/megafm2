@@ -136,41 +136,32 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
     }
   }, [cellSize, perfLevel]);
   
-  // Create a particle system for visual effects
+  // Create standard particle system
   const particleSystem = useMemo(() => {
-    if (perfLevel === 'low') return null; // Skip for low performance
+    // Create basic particle system based on performance level
+    const particleCount = 200;
     
-    const particleCount = perfLevel === 'high' ? 1000 : 300;
-    const geometry = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
     
-    // Initialize all particles at origin
+    // Initialize all particles at origin with white color
     for (let i = 0; i < particleCount; i++) {
       const i3 = i * 3;
       positions[i3] = 0;
-      positions[i3 + 1] = 0;
+      positions[i3 + 1] = -100; // Move them out of view initially
       positions[i3 + 2] = 0;
       
-      colors[i3] = 1;
-      colors[i3 + 1] = 1;
-      colors[i3 + 2] = 1;
+      colors[i3] = 1;     // R
+      colors[i3 + 1] = 1; // G
+      colors[i3 + 2] = 1; // B
     }
     
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    
-    const material = new THREE.PointsMaterial({
-      size: 0.1,
-      transparent: true,
-      vertexColors: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      sizeAttenuation: true
-    });
-    
-    return { geometry, material, positions, colors, count: particleCount };
-  }, [perfLevel]);
+    return { 
+      positions, 
+      colors, 
+      count: particleCount
+    };
+  }, []);
   
   // Get access to tempo from store for transition timing
   const tempo = useSelector(state => state.algorithm?.tempo || 120);
@@ -261,54 +252,40 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
     return posMap;
   }, [activeNotes]);
   
-  // Function to create particle burst effects with limits
+  // Basic function to create particle burst effects
   const createParticleBurst = useCallback((x, y, z, color, type) => {
-    if (perfLevel === 'low' || !particleSystem) return;
-    
-    // Don't create more particles if we're already at the limit
-    const maxParticles = perfLevel === 'high' ? 500 : 200;
+    // Create a few particles for the effect
+    const maxParticles = 20;
     if (particles.length >= maxParticles) return;
     
     const newParticles = [];
-    // Adjust particle count based on current count to prevent overloading
-    const particleCount = perfLevel === 'high' ? 
-      Math.min(20, maxParticles - particles.length) : 
-      Math.min(10, maxParticles - particles.length);
-    
-    // If we can't create any more particles, return
-    if (particleCount <= 0) return;
+    // Create a smaller number of particles
+    const particleCount = 3;
     
     for (let i = 0; i < particleCount; i++) {
       // Generate random direction
       const angle = Math.random() * Math.PI * 2;
-      const upwardBias = type === 'birth' ? 0.8 : 0.2; // Birth particles go up, death go down
+      const upwardBias = type === 'birth' ? 0.7 : 0.2; // Birth particles go up, death go down
       
-      // Create particle with faster decay for better performance
-      const decayRate = perfLevel === 'high' ? (0.92 + Math.random() * 0.05) : (0.85 + Math.random() * 0.05);
-      
+      // Create simple particle
       newParticles.push({
         position: [x, y, z],
         velocity: [
-          Math.cos(angle) * (0.03 + Math.random() * 0.03),
-          upwardBias * (0.04 + Math.random() * 0.06),
-          Math.sin(angle) * (0.03 + Math.random() * 0.03)
+          Math.cos(angle) * 0.05,
+          upwardBias * 0.05,
+          Math.sin(angle) * 0.05
         ],
-        color: new THREE.Color(color),
-        life: 1.0,
-        decay: decayRate,
-        createdAt: Date.now() // Track creation time for lifecycle management
+        color: new THREE.Color(color || 0xffffff),
+        life: 1.0
       });
     }
     
     setParticles(prev => {
-      // If adding these would exceed our limit, remove the oldest particles first
+      // Limit total particles
       const combined = [...prev, ...newParticles];
-      if (combined.length > maxParticles) {
-        return combined.slice(-maxParticles); // Keep only the newest particles
-      }
-      return combined;
+      return combined.slice(-maxParticles); // Keep only the newest particles
     });
-  }, [perfLevel, particleSystem, particles.length]);
+  }, [particles.length]);
   
   // Function to add simulated cells to the Game of Life visualization
   const addSimulatedCells = useCallback(() => {
@@ -420,87 +397,66 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
     });
   }, [is2D, currentAlgorithm, size, height, cells, colors, createParticleBurst]);
 
-  // Effect to initialize cells and make them visible when Game of Life is selected
+  // Simple effect to initialize cells
   useEffect(() => {
-    // Only run this for Game of Life mode
-    if (is2D && currentAlgorithm === 'cellular') {
-      // Create fake cell activations if no notes are visible
-      if (activeNotes.length === 0) {
-        console.log("Creating initial Game of Life visualization");
+    // Only run in cellular mode
+    if (currentAlgorithm === 'cellular') {
+      // Add a simpler pattern to ensure visualization
+      const fakeCells = [];
+      
+      // Add a cross pattern in the center
+      const centerX = Math.floor(size / 2);
+      const centerY = Math.floor(height / 2);
+      
+      fakeCells.push(
+        { column: centerX, row: centerY, state: 'active', velocity: 100 },
+        { column: centerX - 1, row: centerY, state: 'active', velocity: 100 },
+        { column: centerX + 1, row: centerY, state: 'active', velocity: 100 },
+        { column: centerX, row: centerY - 1, state: 'active', velocity: 100 },
+        { column: centerX, row: centerY + 1, state: 'active', velocity: 100 }
+      );
+      
+      // Update cell visualization for each fake cell
+      fakeCells.forEach(fakeCell => {
+        const cellIndex = cells.findIndex(c => 
+          c.coords[0] === fakeCell.column && c.coords[1] === fakeCell.row
+        );
         
-        // Add some random active cells in the center region
-        const centerX = Math.floor(size / 2);
-        const centerY = Math.floor(height / 2);
-        
-        // Create a basic pattern in the center (glider or blinker)
-        // This ensures there's some visual activity even before notes are generated
-        const fakeCells = [];
-        
-        // Add a glider pattern
-        if (centerX > 2 && centerY > 2 && centerX < size - 3 && centerY < height - 3) {
-          fakeCells.push(
-            { column: centerX, row: centerY, state: 'active', velocity: 100 },
-            { column: centerX + 1, row: centerY, state: 'active', velocity: 100 },
-            { column: centerX + 2, row: centerY, state: 'active', velocity: 100 },
-            { column: centerX + 2, row: centerY - 1, state: 'active', velocity: 100 },
-            { column: centerX + 1, row: centerY - 2, state: 'active', velocity: 100 }
-          );
-        }
-        
-        // Add another pattern in a different area (blinker)
-        const offsetX = Math.floor(size / 3);
-        const offsetY = Math.floor(height / 3);
-        if (offsetX > 2 && offsetY > 2 && offsetX < size - 3 && offsetY < height - 3) {
-          fakeCells.push(
-            { column: offsetX - 1, row: offsetY, state: 'active', velocity: 100 },
-            { column: offsetX, row: offsetY, state: 'active', velocity: 100 },
-            { column: offsetX + 1, row: offsetY, state: 'active', velocity: 100 }
-          );
-        }
-        
-        // Update cell visualization for each fake cell
-        fakeCells.forEach(fakeCell => {
-          const cellIndex = cells.findIndex(c => 
-            c.coords[0] === fakeCell.column && c.coords[1] === fakeCell.row
-          );
+        if (cellIndex !== -1 && cellsRef.current[cellIndex]) {
+          const mesh = cellsRef.current[cellIndex];
           
-          if (cellIndex !== -1 && cellsRef.current[cellIndex]) {
-            const mesh = cellsRef.current[cellIndex];
+          // Make the cell visible
+          if (mesh.material) {
+            mesh.userData.state = fakeCell.state;
+            mesh.userData.velocity = fakeCell.velocity;
             
-            // Make the cell visible
-            if (mesh.material) {
-              mesh.userData.state = fakeCell.state;
-              mesh.userData.velocity = fakeCell.velocity;
-              
-              // Set proper color based on state
-              const stateColor = colors[fakeCell.state] || colors.active;
-              mesh.material.color.copy(stateColor);
-              
-              // Raise cell slightly to indicate it's active
-              mesh.position.y = 0.05 + Math.random() * 0.1;
-              
-              // Add to notesRef for tracking
-              notesRef.current.push({
-                ...fakeCell,
-                birthTime: Date.now()
-              });
-            }
+            // Set color based on state
+            const stateColor = colors[fakeCell.state] || colors.active;
+            mesh.material.color.copy(stateColor);
+            
+            // Set height
+            mesh.scale.y = 0.3;
+            mesh.position.y = 0.15;
+            
+            // Add to notesRef for tracking
+            notesRef.current.push({
+              ...fakeCell,
+              birthTime: Date.now()
+            });
           }
-        });
-        
-        // Schedule the first periodic addition of simulated cells
-        const timer = setTimeout(addSimulatedCells, 1000);
-        
-        // Create an interval to periodically add more cells to keep the visualization active
-        const interval = setInterval(addSimulatedCells, 5000);
-        
-        return () => {
-          clearTimeout(timer);
-          clearInterval(interval);
-        };
-      }
+        }
+      });
+      
+      // Create simpler periodic updates
+      const timer = setTimeout(addSimulatedCells, 1000);
+      const interval = setInterval(addSimulatedCells, 3000);
+      
+      return () => {
+        clearTimeout(timer);
+        clearInterval(interval);
+      };
     }
-  }, [is2D, currentAlgorithm, activeNotes.length, size, height, cells, colors, addSimulatedCells]);
+  }, [currentAlgorithm, size, height, cells, colors, addSimulatedCells]);
   
   // Update particles function - moved from duplicate location
   
@@ -566,21 +522,17 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
     });
   }, [activeNotes, cells, is2D, colors.birth, colors.death]);
   
-  // Update particles in animation loop with memory leak prevention
+  // Basic particle update function
   const updateParticles = useCallback((delta) => {
-    if (perfLevel === 'low' || !particleSystem || particles.length === 0) return;
+    if (!particleSystem || particles.length === 0) return;
     
     // Update particle positions and lifetimes
     setParticles(prevParticles => {
-      // Memory leak prevention: limit max number of particles
-      const maxParticles = perfLevel === 'high' ? 500 : 200;
-      let particlesToProcess = prevParticles;
+      // Limit max number of particles
+      const maxParticles = 100;
+      let particlesToProcess = prevParticles.slice(-maxParticles);
       
-      if (prevParticles.length > maxParticles) {
-        // If we have too many particles, keep only the newest ones
-        particlesToProcess = prevParticles.slice(-maxParticles);
-      }
-      
+      // Update each particle
       const updatedParticles = particlesToProcess
         .map(particle => {
           // Apply velocity and gravity
@@ -591,30 +543,26 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
               particle.position[1] + particle.velocity[1] - 0.005, // Gravity
               particle.position[2] + particle.velocity[2]
             ],
-            // Apply faster decay for better performance
-            life: particle.life * (perfLevel === 'high' ? particle.decay : particle.decay * 0.9)
+            // Apply decay
+            life: particle.life * 0.95
           };
         })
         .filter(particle => particle.life > 0.01); // Remove dead particles
         
-      // Update particle system geometry if we have particles
-      if (updatedParticles.length > 0 && particleSystem.geometry) {
+      // Update particle system position and color arrays
+      if (updatedParticles.length > 0 && particleSystem) {
         const positions = particleSystem.positions;
         const colors = particleSystem.colors;
         
-        // Reset all particles to origin/invisible
+        // Reset all particles to be invisible
         for (let i = 0; i < particleSystem.count; i++) {
           const i3 = i * 3;
           positions[i3] = 0;
           positions[i3 + 1] = -1000; // Move unused particles far away
           positions[i3 + 2] = 0;
-          
-          colors[i3] = 0;
-          colors[i3 + 1] = 0;
-          colors[i3 + 2] = 0;
         }
         
-        // Update with active particles
+        // Update only the active particles
         updatedParticles.forEach((particle, i) => {
           if (i >= particleSystem.count) return;
           
@@ -623,28 +571,28 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
           positions[i3 + 1] = particle.position[1];
           positions[i3 + 2] = particle.position[2];
           
-          colors[i3] = particle.color.r * particle.life;
-          colors[i3 + 1] = particle.color.g * particle.life;
-          colors[i3 + 2] = particle.color.b * particle.life;
+          const r = particle.color ? particle.color.r : 1;
+          const g = particle.color ? particle.color.g : 1;
+          const b = particle.color ? particle.color.b : 1;
+          
+          colors[i3] = r * particle.life;
+          colors[i3 + 1] = g * particle.life;
+          colors[i3 + 2] = b * particle.life;
         });
-        
-        particleSystem.geometry.attributes.position.needsUpdate = true;
-        particleSystem.geometry.attributes.color.needsUpdate = true;
       }
       
       return updatedParticles;
     });
-  }, [particles, particleSystem, perfLevel]);
+  }, [particles, particleSystem]);
   
-  // Animation loop with enhanced effects and synchronization with algorithm tempo
+  // Basic animation loop
   useFrame((state, delta) => {
-    // Get parent timing data if available for better synchronization
+    // Get parent timing data if available
     const parentGroup = state.scene.getObjectByName('visualizerGroup');
     const parentTiming = parentGroup?.userData || {};
     
     // Use parent time data or fall back to local
     const time = parentTiming.time || state.clock.elapsedTime;
-    // Adjust delta based on tempo if available
     const adjustedDelta = parentTiming.delta || delta;
     
     // Update text display
@@ -653,66 +601,33 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
       const noteCount = notesRef.current.length;
       textRef.current.text = `${title} - ${noteCount} active cells`;
       
-      // Pulse text color based on activity
+      // Simple text color effect
       if (textRef.current.material) {
-        const pulseIntensity = Math.sin(time * 2) * 0.2 + 0.8;
-        const noteColorFactor = Math.min(1, noteCount / 10);
-        textRef.current.material.color.setRGB(
-          1,
-          0.8 + 0.2 * pulseIntensity * noteColorFactor,
-          0.8 + 0.2 * (1 - noteColorFactor)
-        );
+        textRef.current.material.color.setRGB(1, 1, 1);
       }
     }
     
-    // Update grid rotation and animation
+    // Update grid 
     if (gridRef.current) {
-      // Tilt the grid for better visibility
-      gridRef.current.rotation.x = -Math.PI / 4;
-      
-      // Slightly raise/lower grid with activity - breathing effect
-      const activeNoteCount = notesRef.current.length;
-      const heightFactor = Math.min(1, activeNoteCount / 20);
-      const breathe = Math.sin(time * 0.5) * 0.1 * heightFactor;
-      gridRef.current.position.y = breathe;
-      
-      // Small wobble effect - more intense with more activity
-      gridRef.current.rotation.z = Math.sin(time * 0.2) * 0.05 * (1 + heightFactor * 0.5);
-      
-      // If auto-rotate is enabled, slowly rotate the grid
-      if (visualizerSettings.autoRotate) {
-        gridRef.current.rotation.y += delta * 0.1;
-      }
+      // Use the proper tilted grid orientation that was originally specified
+      gridRef.current.rotation.x = Math.PI / 2;
     }
     
-    // Check if we need to update particles
+    // Update particles
     if (particles.length > 0) {
       updateParticles(adjustedDelta);
     }
     
-    // Update glow effects based on activity and performance level
+    // Update glow effect with a constant value
     if (glowRef.current) {
-      const activeNoteCount = notesRef.current.length;
-      // Scale glow intensity based on performance level
-      let maxGlowIntensity;
-      if (perfLevel === 'high') {
-        maxGlowIntensity = 0.5;
-      } else if (perfLevel === 'medium') {
-        maxGlowIntensity = 0.3;
-      } else {
-        maxGlowIntensity = 0.2;
-      }
+      glowRef.current.scale.setScalar(1.2);
       
-      const glowIntensity = Math.min(1, activeNoteCount / 40) * maxGlowIntensity;
-      glowRef.current.scale.setScalar(1 + glowIntensity);
-      
-      // Adjust opacity based on performance level to reduce fill-rate impact
       if (glowRef.current.material) {
-        glowRef.current.material.opacity = perfLevel === 'low' ? 0.1 : 0.15;
+        glowRef.current.material.opacity = 0.15;
       }
     }
     
-    // Update cell colors and animations with more nuanced effects
+    // Update cell colors and animations with more visible effects
     cellsRef.current.forEach((cell, index) => {
       if (!cell) return;
       
@@ -723,17 +638,28 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
       const wasActive = cell.userData.active;
       cell.userData.active = false;
       
-      // Default inactive state
+      // Default inactive state with slight glow
       cell.material.color.copy(colors.inactive);
-      cell.material.emissiveIntensity = 0;
+      cell.material.emissiveIntensity = 0.2;
       
-      // Determine if cell should shrink or maintain height
+      // Add a subtle animation to all cells based on time
+      const time = state.clock.elapsedTime;
+      const pulseFactor = Math.sin(time * 0.5 + (x + y) * 0.2) * 0.05 + 0.95;
+      
+      // Determine if cell should shrink or maintain height with animation
       if (!wasActive) {
-        cell.scale.y = 0.1; // Inactive height
-        cell.position.y = 0;
+        // Even inactive cells have a slight height variation
+        cell.scale.y = 0.1 * pulseFactor; 
+        cell.position.y = cell.scale.y / 2;
+        
+        // Add slight color variation based on position for visual interest
+        const hue = ((x + y) % 20) / 20;
+        const saturation = 0.2;
+        const lightness = 0.2 + Math.sin(time * 0.3 + x * 0.1) * 0.05;
+        cell.material.color.setHSL(hue, saturation, lightness);
       } else {
-        // Shrink gradually if was previously active
-        cell.scale.y = Math.max(0.1, cell.scale.y * 0.9);
+        // Shrink gradually if was previously active, but maintain animation
+        cell.scale.y = Math.max(0.1, cell.scale.y * 0.9) * pulseFactor;
         cell.position.y = cell.scale.y / 2;
       }
       
@@ -857,48 +783,44 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
         color="white"
         anchorX="center"
         anchorY="middle"
-        font="/fonts/Inter-Bold.woff"
       >
         Cellular Automaton
       </Text>
       
-      {/* Environmental lighting */}
-      <ambientLight intensity={0.2} /> 
-      <pointLight position={[0, 5, 0]} intensity={0.5} color="#6688ff" />
+      {/* Basic environmental lighting for better compatibility */}
+      <ambientLight intensity={0.6} /> 
+      <pointLight position={[0, 5, 0]} intensity={0.7} color="#6688ff" />
+      <pointLight position={[5, 3, 5]} intensity={0.5} color="#88aaff" />
       
-      {/* Subtle glow effect under the grid */}
+      {/* Enhanced glow effect under the grid */}
       <mesh 
         ref={glowRef}
         position={[0, -0.2, 0]} 
         rotation={[-Math.PI / 2, 0, 0]}
       >
-        <planeGeometry args={[size * spacing, size * spacing]} />
+        <planeGeometry args={[size * spacing * 2, size * spacing * 2]} />
         <meshBasicMaterial 
-          color={colors.background} 
+          color={0x224466} 
           transparent={true} 
-          opacity={0.15} 
+          opacity={0.3} 
           blending={THREE.AdditiveBlending}
         />
       </mesh>
       
-      {/* Grid */}
-      <group ref={gridRef}>
-        {/* Floor plane for grid - better in 2D mode */}
-        {is2D && perfLevel !== 'low' && (
-          <mesh 
-            position={[0, -0.05, 0]} 
-            rotation={[-Math.PI / 2, 0, 0]}
-          >
-            <planeGeometry args={[size * spacing, size * spacing]} />
-            <meshStandardMaterial 
-              color="#112244"
-              metalness={0.2}
-              roughness={0.8}
-              transparent={true}
-              opacity={0.7}
-            />
-          </mesh>
-        )}
+      {/* Grid - rotate to be more visible from top view */}
+      <group ref={gridRef} rotation={[0, 0, 0]}>
+        {/* Floor plane for grid - always visible for better clarity */}
+        <mesh 
+          position={[0, -0.05, 0]} 
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
+          <planeGeometry args={[size * spacing * 1.5, size * spacing * 1.5]} />
+          <meshBasicMaterial 
+            color="#142440"
+            transparent={true}
+            opacity={0.9}
+          />
+        </mesh>
         
         {/* Cells */}
         {cells.map((cell, index) => (
@@ -916,10 +838,10 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
               <primitive object={cellGeometry} />
               <meshStandardMaterial
                 color={colors.inactive}
-                metalness={0.4}
+                metalness={0.5}
                 roughness={0.2}
                 emissive={colors.inactive}
-                emissiveIntensity={0}
+                emissiveIntensity={0.5}
                 transparent={true}
                 opacity={0.9}
               />
@@ -976,22 +898,41 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
           </group>
         ))}
         
-        {/* Particle system for effects */}
-        {perfLevel !== 'low' && particleSystem && (
+        {/* Simple standard particle system */}
+        {particleSystem && (
           <points>
-            <primitive object={particleSystem.geometry} />
-            <primitive object={particleSystem.material} />
+            <bufferGeometry>
+              <bufferAttribute
+                attach="attributes-position"
+                count={particleSystem.count}
+                array={particleSystem.positions}
+                itemSize={3}
+              />
+              <bufferAttribute
+                attach="attributes-color"
+                count={particleSystem.count}
+                array={particleSystem.colors}
+                itemSize={3}
+              />
+            </bufferGeometry>
+            <pointsMaterial
+              size={0.2}
+              vertexColors
+              transparent
+              opacity={0.6}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+              sizeAttenuation
+            />
           </points>
         )}
         
         {/* Grid lines */}
-        {is2D && (
-          <gridHelper 
-            args={[size * spacing * 1.02, size, colors.grid.getHex(), colors.grid.getHex()]} 
-            position={[0, 0.01, 0]}
-            rotation={[Math.PI / 2, 0, 0]}
-          />
-        )}
+        <gridHelper 
+          args={[size * spacing * 1.02, size, colors.grid.getHex(), colors.grid.getHex()]} 
+          position={[0, 0.01, 0]}
+          rotation={[Math.PI / 2, 0, 0]}
+        />
       </group>
     </group>
   );
