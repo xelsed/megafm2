@@ -1,42 +1,84 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
+import { useThreeResources, addTrackedEventListener } from './BaseVisualizerComponent';
 
 // Simple particle field visualizer that reacts to music
-const ParticleFieldVisualizer = ({ activeNotes = [] }) => {
+const ParticleFieldVisualizer = ({ activeNotes = [], perfLevel = 'medium', particleCount = 2000 }) => {
   const particlesRef = useRef();
-  const particleCount = 2000;
+  
+  // Set actual particle count based on performance level
+  const actualParticleCount = useMemo(() => {
+    return particleCount; // Already received from parent based on performance level
+  }, [particleCount]);
   
   // Create particles with initial random positions
   const particles = useMemo(() => {
-    const positions = new Float32Array(particleCount * 3);
-    const colors = new Float32Array(particleCount * 3);
-    const sizes = new Float32Array(particleCount);
+    const positions = new Float32Array(actualParticleCount * 3);
+    const colors = new Float32Array(actualParticleCount * 3);
+    const sizes = new Float32Array(actualParticleCount);
     
-    for (let i = 0; i < particleCount; i++) {
+    for (let i = 0; i < actualParticleCount; i++) {
       // Random position in a sphere
       const radius = 5 + Math.random() * 10;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.random() * Math.PI;
       
-      positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);     // x
-      positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta); // y
-      positions[i * 3 + 2] = radius * Math.cos(phi);                   // z
+      const x = radius * Math.sin(phi) * Math.cos(theta);
+      const y = radius * Math.sin(phi) * Math.sin(theta);
+      const z = radius * Math.cos(phi);
       
-      // Random color
-      colors[i * 3] = 0.3 + Math.random() * 0.7;     // r
-      colors[i * 3 + 1] = 0.3 + Math.random() * 0.7; // g
-      colors[i * 3 + 2] = 0.8 + Math.random() * 0.2; // b - more blue
+      positions[i * 3] = x;
+      positions[i * 3 + 1] = y;
+      positions[i * 3 + 2] = z;
       
-      // Random size
-      sizes[i] = 0.1 + Math.random() * 0.2;
+      // Random colors
+      colors[i * 3] = Math.random();
+      colors[i * 3 + 1] = Math.random();
+      colors[i * 3 + 2] = Math.random();
+      
+      // Random sizes
+      sizes[i] = Math.random() * 0.5 + 0.1;
     }
     
     return { positions, colors, sizes };
-  }, [particleCount]);
+  }, [actualParticleCount]);
   
-  // Update particles on each frame
+  // Track all Three.js resources for proper cleanup
+  const resourcesRef = useThreeResources(() => {
+    // Create the geometry
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(particles.positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(particles.colors, 3));
+    geometry.setAttribute('size', new THREE.BufferAttribute(particles.sizes, 1));
+    
+    // Create the material
+    const material = new THREE.PointsMaterial({
+      size: 0.1,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.8,
+      sizeAttenuation: true
+    });
+    
+    // Bind resize event
+    const handleResize = () => {
+      // Any resize handling logic
+    };
+    
+    addTrackedEventListener(resourcesRef, window, 'resize', handleResize);
+    
+    return {
+      geometries: [geometry],
+      materials: [material],
+      textures: [],
+      renderTargets: [],
+      eventListeners: []
+    };
+  }, [particles]);
+  
+  // React to active notes
   useFrame((state, delta) => {
     if (!particlesRef.current) return;
     
@@ -44,94 +86,86 @@ const ParticleFieldVisualizer = ({ activeNotes = [] }) => {
     const colors = particlesRef.current.geometry.attributes.color.array;
     const sizes = particlesRef.current.geometry.attributes.size.array;
     
-    // Pulse effect based on active notes
-    const pulseStrength = activeNotes.length * 0.1;
-    const time = state.clock.elapsedTime;
+    // Make particles react to notes
+    const activeNoteCount = activeNotes.length;
     
-    for (let i = 0; i < particleCount; i++) {
-      // Add some simple animation - particles orbit and pulsate
+    // Simple animation for all particles
+    for (let i = 0; i < actualParticleCount; i++) {
+      // Get current position
       const x = positions[i * 3];
       const y = positions[i * 3 + 1];
       const z = positions[i * 3 + 2];
       
-      // Orbit movement
-      const distance = Math.sqrt(x * x + z * z);
-      const angle = Math.atan2(z, x) + delta * 0.1 * (1 + Math.sin(time * 0.1) * 0.1);
+      // Calculate distance from center
+      const distance = Math.sqrt(x * x + y * y + z * z);
       
-      positions[i * 3] = distance * Math.cos(angle);     // new x
-      positions[i * 3 + 2] = distance * Math.sin(angle); // new z
+      // Add small random movement
+      positions[i * 3] += (Math.random() - 0.5) * 0.01 * delta * 60;
+      positions[i * 3 + 1] += (Math.random() - 0.5) * 0.01 * delta * 60;
+      positions[i * 3 + 2] += (Math.random() - 0.5) * 0.01 * delta * 60;
       
-      // Add vertical wave
-      positions[i * 3 + 1] = y + Math.sin(time + i * 0.01) * 0.02;
-      
-      // Size pulsing based on active notes
-      sizes[i] = (0.1 + Math.random() * 0.2) * (1 + pulseStrength * Math.sin(time * 5 + i * 0.01));
-      
-      // Color changes based on active notes
-      if (activeNotes.length > 0 && i % 20 === 0) {
-        // Change some particles to highlight colors
-        const noteIndex = i % activeNotes.length;
-        const note = activeNotes[noteIndex]?.note || 60;
+      // Make particles pulse with active notes
+      if (activeNoteCount > 0) {
+        for (let j = 0; j < activeNoteCount; j++) {
+          const note = activeNotes[j];
+          
+          if (note && note.velocity) {
+            // Map note velocity to particle size
+            const velocityFactor = note.velocity / 127;
+            sizes[i] = 0.1 + Math.random() * 0.4 * velocityFactor;
+            
+            // Map note pitch to particle color
+            if (note.pitch) {
+              const pitchNormalized = (note.pitch - 36) / 60; // Normalize to 0-1 range for typical MIDI notes
+              
+              // Create color based on pitch
+              colors[i * 3] = pitchNormalized; // Red increases with pitch
+              colors[i * 3 + 1] = 1 - pitchNormalized; // Green decreases with pitch
+              colors[i * 3 + 2] = 0.5; // Blue constant
+            }
+          }
+        }
+      } else {
+        // Default behavior when no notes are active
+        sizes[i] = 0.1 + Math.sin(distance + state.clock.elapsedTime) * 0.05;
         
-        // Map note to color (hue)
-        const hue = ((note % 12) / 12);
-        const { r, g, b } = new THREE.Color().setHSL(hue, 0.8, 0.6);
-        
-        colors[i * 3] = r;
-        colors[i * 3 + 1] = g;
-        colors[i * 3 + 2] = b;
+        // Slowly return to original colors
+        colors[i * 3] = (colors[i * 3] * 0.95) + (Math.random() * 0.05);
+        colors[i * 3 + 1] = (colors[i * 3 + 1] * 0.95) + (Math.random() * 0.05);
+        colors[i * 3 + 2] = (colors[i * 3 + 2] * 0.95) + (Math.random() * 0.05);
       }
     }
     
+    // Update the geometry attributes
     particlesRef.current.geometry.attributes.position.needsUpdate = true;
     particlesRef.current.geometry.attributes.color.needsUpdate = true;
     particlesRef.current.geometry.attributes.size.needsUpdate = true;
   });
   
-  // Create the particle system
   return (
-    <group>
+    <>
       <points ref={particlesRef}>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={particleCount}
-            array={particles.positions}
-            itemSize={3}
-          />
-          <bufferAttribute
-            attach="attributes-color"
-            count={particleCount}
-            array={particles.colors}
-            itemSize={3}
-          />
-          <bufferAttribute
-            attach="attributes-size"
-            count={particleCount}
-            array={particles.sizes}
-            itemSize={1}
-          />
-        </bufferGeometry>
-        <pointsMaterial
-          size={0.15}
+        <bufferGeometry attach="geometry" {...resourcesRef.current?.geometries[0]} />
+        <pointsMaterial 
+          attach="material"
+          size={0.1}
           vertexColors
           transparent
-          blending={THREE.AdditiveBlending}
+          opacity={0.8}
           sizeAttenuation
-          depthWrite={false}
         />
       </points>
       
       <Text
-        position={[0, 7, 0]}
-        fontSize={0.5}
+        position={[0, 8, 0]}
         color="white"
+        fontSize={0.5}
         anchorX="center"
         anchorY="middle"
       >
         Particle Field Visualizer
       </Text>
-    </group>
+    </>
   );
 };
 
