@@ -197,8 +197,15 @@ const AlgorithmEngine = () => {
     // The next animation frame will use the updated noteInterval value
     if (isPlaying) {
       console.log(`Updated playback timing to: ${noteInterval}ms (tempo: ${tempo}bpm)`);
+      
+      // When tempo changes, regenerate sequence for better sync
+      if (midiOutput) {
+        console.log("Regenerating sequence to match new tempo");
+        generateSequence();
+        stepIndexRef.current = 0;
+      }
     }
-  }, [tempo, noteInterval, isPlaying]);
+  }, [tempo, noteInterval, isPlaying, midiOutput, generateSequence]);
   
   // Regenerate the sequence when algorithm or parameters change
   useEffect(() => {

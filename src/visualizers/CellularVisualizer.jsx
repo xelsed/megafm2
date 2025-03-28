@@ -287,69 +287,43 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
     });
   }, [particles.length]);
   
-  // Function to add simulated cells to the Game of Life visualization
+  // Function to add visualization cells to match the generated Game of Life data
   const addSimulatedCells = useCallback(() => {
     if (!is2D || currentAlgorithm !== 'cellular') return;
     
-    console.log("Adding simulated cells to Game of Life visualization");
+    console.log("Adding visualization cells for Game of Life pattern");
     
-    // Create several patterns across the grid to ensure visualization
+    // Create cross pattern in the center to ensure visibility
     const fakeCells = [];
     
-    // Add a glider pattern in the top-left quadrant
-    const topLeftX = Math.floor(size / 4);
-    const topLeftY = Math.floor(height / 4);
-    if (topLeftX > 2 && topLeftY > 2 && topLeftX < size - 3 && topLeftY < height - 3) {
-      fakeCells.push(
-        { column: topLeftX + 1, row: topLeftY, state: 'active', velocity: 100 },
-        { column: topLeftX + 2, row: topLeftY + 1, state: 'active', velocity: 100 },
-        { column: topLeftX, row: topLeftY + 2, state: 'active', velocity: 100 },
-        { column: topLeftX + 1, row: topLeftY + 2, state: 'active', velocity: 100 },
-        { column: topLeftX + 2, row: topLeftY + 2, state: 'active', velocity: 100 }
-      );
-    }
-    
-    // Add a blinker in the top-right quadrant
-    const topRightX = Math.floor(3 * size / 4);
-    const topRightY = Math.floor(height / 4);
-    if (topRightX > 2 && topRightY > 2 && topRightX < size - 3 && topRightY < height - 3) {
-      fakeCells.push(
-        { column: topRightX - 1, row: topRightY, state: 'active', velocity: 100 },
-        { column: topRightX, row: topRightY, state: 'active', velocity: 100 },
-        { column: topRightX + 1, row: topRightY, state: 'active', velocity: 100 }
-      );
-    }
-    
-    // Add a block pattern in the bottom-left quadrant
-    const bottomLeftX = Math.floor(size / 4);
-    const bottomLeftY = Math.floor(3 * height / 4);
-    if (bottomLeftX > 1 && bottomLeftY > 1 && bottomLeftX < size - 2 && bottomLeftY < height - 2) {
-      fakeCells.push(
-        { column: bottomLeftX, row: bottomLeftY, state: 'active', velocity: 100 },
-        { column: bottomLeftX + 1, row: bottomLeftY, state: 'active', velocity: 100 },
-        { column: bottomLeftX, row: bottomLeftY + 1, state: 'active', velocity: 100 },
-        { column: bottomLeftX + 1, row: bottomLeftY + 1, state: 'active', velocity: 100 }
-      );
-    }
-    
-    // Add random cells in the center region
+    // Create a cross pattern in the center
     const centerX = Math.floor(size / 2);
     const centerY = Math.floor(height / 2);
-    for (let i = 0; i < 5; i++) {
-      const offsetX = Math.floor(Math.random() * 5) - 2;
-      const offsetY = Math.floor(Math.random() * 5) - 2;
-      const cellX = centerX + offsetX;
-      const cellY = centerY + offsetY;
-      
-      if (cellX >= 0 && cellX < size && cellY >= 0 && cellY < height) {
-        fakeCells.push({
-          column: cellX,
-          row: cellY,
-          state: 'birth', // Use birth state for these to get particles
-          velocity: 80 + Math.floor(Math.random() * 47) // 80-127 range
-        });
-      }
-    }
+    
+    fakeCells.push(
+      { column: centerX, row: centerY, state: 'active', velocity: 100 },
+      { column: centerX - 1, row: centerY, state: 'active', velocity: 100 },
+      { column: centerX + 1, row: centerY, state: 'active', velocity: 100 },
+      { column: centerX, row: centerY - 1, state: 'active', velocity: 100 },
+      { column: centerX, row: centerY + 1, state: 'active', velocity: 100 }
+    );
+    
+    // Add cells in each quadrant to ensure good visualization
+    const quadrantPoints = [
+      [Math.floor(size/4), Math.floor(height/4)],         // Top-left
+      [Math.floor(3*size/4), Math.floor(height/4)],       // Top-right
+      [Math.floor(size/4), Math.floor(3*height/4)],       // Bottom-left
+      [Math.floor(3*size/4), Math.floor(3*height/4)]      // Bottom-right
+    ];
+    
+    // Add a few cells in each quadrant
+    quadrantPoints.forEach(([qx, qy]) => {
+      fakeCells.push(
+        { column: qx, row: qy, state: 'birth', velocity: 127 },
+        { column: qx + 1, row: qy, state: 'birth', velocity: 120 },
+        { column: qx, row: qy + 1, state: 'birth', velocity: 110 }
+      );
+    });
     
     // Update cell visualization for each fake cell
     fakeCells.forEach(fakeCell => {
@@ -365,37 +339,25 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
           mesh.userData.state = fakeCell.state;
           mesh.userData.velocity = fakeCell.velocity;
           
-          // Set proper color based on state
+          // Set color based on state
           const stateColor = colors[fakeCell.state] || colors.active;
           mesh.material.color.copy(stateColor);
           
-          // Raise cell slightly to indicate it's active
-          mesh.position.y = 0.05 + Math.random() * 0.1;
+          // Set height for visibility
+          mesh.scale.y = 0.3;
+          mesh.position.y = 0.15;
           
-          // Create particle effects for birth cells
-          if (fakeCell.state === 'birth' && gridRef.current) {
-            const worldPos = new THREE.Vector3();
-            mesh.getWorldPosition(worldPos);
-            
-            // Create particles at this location
-            createParticleBurst(
-              worldPos.x, 
-              worldPos.y, 
-              worldPos.z, 
-              colors.birth.getHex(), 
-              'birth'
-            );
-          }
-          
-          // Add to notesRef for tracking
+          // Add to notesRef for tracking with pitch information
+          const pitchOffset = (fakeCell.column % 12) + ((fakeCell.row % 5) * 12);
           notesRef.current.push({
             ...fakeCell,
+            pitch: 48 + pitchOffset, // Add a base pitch for mapping
             birthTime: Date.now()
           });
         }
       }
     });
-  }, [is2D, currentAlgorithm, size, height, cells, colors, createParticleBurst]);
+  }, [is2D, currentAlgorithm, size, height, cells, colors]);
 
   // Simple effect to initialize cells
   useEffect(() => {

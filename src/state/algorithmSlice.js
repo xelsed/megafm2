@@ -27,20 +27,20 @@ const initialState = {
       parameters: {
         rule: 30,                 // Cellular automaton rule (0-255) for 1D mode
         type: 'gameOfLife',       // Type of cellular automaton: '1D' or 'gameOfLife'
-        initialCondition: 'random', // Initial state: center, random, custom, glider, etc.
+        initialCondition: 'cross', // Initial state: using cross as default for better visibility
         width: 16,                // Width of the automaton grid
         height: 16,               // Height for 2D grid (Game of Life)
         threshold: 0.5,           // Threshold for converting cells to notes
         iterations: 32,           // Number of iterations to evolve the automaton
-        density: 0.4,             // Initial cell density for random patterns
-        velocityMap: 'linear',    // How to map cell position to velocity: linear, distance, random
+        density: 0.5,             // Initial cell density for random patterns (increased)
+        velocityMap: 'distance',  // How to map cell position to velocity: linear, distance, random
         harmonies: true,          // Whether to generate harmony notes
         emphasizeBirths: true,    // Whether to emphasize newly born cells with higher velocity
         noteRange: 'mid',         // Pitch range: low, mid, high
         scale: 'pentatonic',      // Musical scale to use for mapping
         performanceMode: 'high',  // Performance level: low, medium, high, auto
         buchlaMode: true,         // Buchla 252e-inspired sequencing mode
-        preferredPatterns: ['glider', 'blinker']  // Preferred patterns for initialization
+        preferredPatterns: ['cross', 'glider', 'blinker']  // Preferred patterns for initialization
       }
     },
     sequential: {
