@@ -136,10 +136,11 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
     }
   }, [cellSize, perfLevel]);
   
-  // Create standard particle system
+  // Create particle system with performance-based sizing
   const particleSystem = useMemo(() => {
-    // Create basic particle system based on performance level
-    const particleCount = 200;
+    // Set particle count based on performance level
+    const particleCount = perfLevel === 'high' ? 500 : 
+                       perfLevel === 'medium' ? 300 : 200;
     
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
@@ -161,7 +162,7 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
       colors, 
       count: particleCount
     };
-  }, []);
+  }, [perfLevel]);
   
   // Get access to tempo from store for transition timing
   const tempo = useSelector(state => state.algorithm?.tempo || 120);
@@ -187,7 +188,12 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
             ],
             coords: [x, y],
             state: 'inactive',
-            generationsAlive: 0
+            generationsAlive: 0,
+            birthTimestamp: 0,        // When the cell was first activated
+            lastActiveTimestamp: 0,   // When the cell was last active
+            ageHistory: [0, 0, 0],    // History of activity for pattern detection
+            isOscillator: false,      // Whether this cell is part of an oscillator pattern
+            oscillatorPeriod: 0       // Period of oscillation if part of an oscillator
           });
         }
       }
@@ -212,7 +218,12 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
             ],
             coords: [x, z], // x is horizontal position, z is generation number
             state: 'inactive',
-            generationsAlive: 0
+            generationsAlive: 0,
+            birthTimestamp: 0,
+            lastActiveTimestamp: 0,
+            ageHistory: [0, 0, 0],
+            isOscillator: false,
+            oscillatorPeriod: 0
           });
         }
       }
@@ -252,40 +263,46 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
     return posMap;
   }, [activeNotes]);
   
-  // Basic function to create particle burst effects
+  // Enhanced function to create particle burst effects with performance scaling
   const createParticleBurst = useCallback((x, y, z, color, type) => {
-    // Create a few particles for the effect
-    const maxParticles = 20;
+    // Create particles based on performance level
+    const maxParticles = perfLevel === 'high' ? 50 : 
+                         perfLevel === 'medium' ? 30 : 20;
+                         
     if (particles.length >= maxParticles) return;
     
     const newParticles = [];
-    // Create a smaller number of particles
-    const particleCount = 3;
+    // Create particles based on performance setting
+    const particleCount = perfLevel === 'high' ? 8 : 
+                          perfLevel === 'medium' ? 5 : 3;
     
     for (let i = 0; i < particleCount; i++) {
-      // Generate random direction
+      // Generate random direction with more variation in high performance mode
       const angle = Math.random() * Math.PI * 2;
       const upwardBias = type === 'birth' ? 0.7 : 0.2; // Birth particles go up, death go down
       
-      // Create simple particle
+      // More dynamic particles in high performance mode
+      const speedMultiplier = perfLevel === 'high' ? 0.07 : 0.05;
+      
+      // Create particle with performance-based properties
       newParticles.push({
         position: [x, y, z],
         velocity: [
-          Math.cos(angle) * 0.05,
-          upwardBias * 0.05,
-          Math.sin(angle) * 0.05
+          Math.cos(angle) * speedMultiplier,
+          upwardBias * speedMultiplier,
+          Math.sin(angle) * speedMultiplier
         ],
         color: new THREE.Color(color || 0xffffff),
-        life: 1.0
+        life: perfLevel === 'high' ? 1.2 : 1.0 // Longer-lived particles in high performance mode
       });
     }
     
     setParticles(prev => {
-      // Limit total particles
+      // Limit total particles based on performance
       const combined = [...prev, ...newParticles];
       return combined.slice(-maxParticles); // Keep only the newest particles
     });
-  }, [particles.length]);
+  }, [particles.length, perfLevel]);
   
   // Function to add visualization cells to match the generated Game of Life data
   const addSimulatedCells = useCallback(() => {
@@ -422,12 +439,18 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
   
   // Update particles function - moved from duplicate location
   
-  // Handle active notes to update cell states with better state tracking
+  // Handle active notes to update cell states with better state tracking and age tracking
   useEffect(() => {
     // Store the previous note state for transitions
     notesRef.current = [];
     
     if (!activeNotes || !cellsRef.current) return;
+    
+    // Record current timestamp for age tracking
+    const currentTime = Date.now();
+    
+    // Track previously active cells to detect cells that died
+    const activeCellsMap = new Map();
     
     // Update notes from active notes and update cell states
     notesByPosition.forEach((notes, key) => {
@@ -456,33 +479,113 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
         velocity: highestPriorityNote.velocity,
         state: highestPriorityNote.state,
         pitch: highestPriorityNote.pitch,
-        birthTime: highestPriorityNote.birthTime || Date.now()
+        birthTime: highestPriorityNote.birthTime || currentTime
       });
       
-      // Create particle effects for birth/death events if we haven't processed this cell recently
-      if (highestPriorityNote.state === 'birth' && gridRef.current) {
-        // Get world position for particles
-        const cellIndex = cells.findIndex(cell => 
-          cell.coords[0] === column && (is2D ? cell.coords[1] === row : true)
-        );
+      // Mark cell as active in our tracking map
+      activeCellsMap.set(`${column},${row}`, true);
+      
+      // Find the cell in our grid to update its age and timestamps
+      const cellIndex = cells.findIndex(cell => 
+        cell.coords[0] === column && (is2D ? cell.coords[1] === row : true)
+      );
+      
+      if (cellIndex >= 0) {
+        const cellData = cells[cellIndex];
+        const cellMesh = cellsRef.current[cellIndex];
         
-        if (cellIndex >= 0 && cellsRef.current[cellIndex]) {
-          const cell = cellsRef.current[cellIndex];
-          const worldPos = new THREE.Vector3();
-          cell.getWorldPosition(worldPos);
+        // If this is a newly active cell (first birth)
+        if (cellData.generationsAlive === 0 || highestPriorityNote.state === 'birth') {
+          // Set birthTimestamp if this is a new cell
+          if (cellData.birthTimestamp === 0) {
+            cellData.birthTimestamp = currentTime;
+            if (cellMesh && cellMesh.userData) {
+              cellMesh.userData.birthTimestamp = currentTime;
+            }
+          }
           
-          // Create particles at this location
+          // Create particle effects for birth events
+          if (highestPriorityNote.state === 'birth' && gridRef.current && cellMesh) {
+            const worldPos = new THREE.Vector3();
+            cellMesh.getWorldPosition(worldPos);
+            
+            // Create particles at this location with color based on cell importance
+            createParticleBurst(
+              worldPos.x, 
+              worldPos.y, 
+              worldPos.z, 
+              colors.birth.getHex(), 
+              'birth'
+            );
+          }
+        }
+        
+        // Update last active timestamp
+        cellData.lastActiveTimestamp = currentTime;
+        if (cellMesh && cellMesh.userData) {
+          cellMesh.userData.lastActiveTimestamp = currentTime;
+        }
+        
+        // Update age history for pattern detection (shift and add)
+        if (cellData.ageHistory && Array.isArray(cellData.ageHistory)) {
+          cellData.ageHistory.shift();
+          cellData.ageHistory.push(1); // 1 = active
+        }
+        
+        // Detect oscillator patterns 
+        // If we have a consistent pattern of activation/deactivation
+        if (perfLevel === 'high' && cellData.ageHistory && 
+            cellData.ageHistory.length >= 3 && 
+            cellData.generationsAlive >= 3) {
+          
+          // Simple detection of period-2 oscillator (blinker)
+          if (JSON.stringify(cellData.ageHistory) === JSON.stringify([0, 1, 0]) ||
+              JSON.stringify(cellData.ageHistory) === JSON.stringify([1, 0, 1])) {
+            cellData.isOscillator = true;
+            cellData.oscillatorPeriod = 2;
+          }
+          
+          // Other pattern detection could be added here
+        }
+      }
+    });
+    
+    // Check for cells that died (were active previously but not now)
+    cells.forEach((cellData, index) => {
+      const cellMesh = cellsRef.current[index];
+      if (!cellMesh) return;
+      
+      const [x, y] = cellData.coords;
+      const cellKey = `${x},${y}`;
+      
+      // If cell was previously active but not in current active list
+      if (cellData.generationsAlive > 0 && !activeCellsMap.has(cellKey)) {
+        // Cell just died - create death particles
+        if (cellData.lastActiveTimestamp > 0 && 
+            currentTime - cellData.lastActiveTimestamp < 1000 &&
+            gridRef.current) {
+          
+          // Create death particles
+          const worldPos = new THREE.Vector3();
+          cellMesh.getWorldPosition(worldPos);
+          
           createParticleBurst(
             worldPos.x, 
             worldPos.y, 
             worldPos.z, 
-            colors.birth.getHex(), 
-            'birth'
+            colors.death.getHex(), 
+            'death'
           );
+          
+          // Reset age history for pattern detection
+          if (cellData.ageHistory && Array.isArray(cellData.ageHistory)) {
+            cellData.ageHistory.shift();
+            cellData.ageHistory.push(0); // 0 = inactive
+          }
         }
       }
     });
-  }, [activeNotes, cells, is2D, colors.birth, colors.death]);
+  }, [activeNotes, cells, is2D, colors.birth, colors.death, perfLevel, createParticleBurst]);
   
   // Basic particle update function
   const updateParticles = useCallback((delta) => {
@@ -547,7 +650,7 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
     });
   }, [particles, particleSystem]);
   
-  // Basic animation loop
+  // Enhanced animation loop with optional high-quality effects
   useFrame((state, delta) => {
     // Get parent timing data if available
     const parentGroup = state.scene.getObjectByName('visualizerGroup');
@@ -563,16 +666,43 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
       const noteCount = notesRef.current.length;
       textRef.current.text = `${title} - ${noteCount} active cells`;
       
-      // Simple text color effect
+      // Pulse text color based on activity - brings back animation
       if (textRef.current.material) {
-        textRef.current.material.color.setRGB(1, 1, 1);
+        if (perfLevel === 'high') {
+          const pulseIntensity = Math.sin(time * 2) * 0.2 + 0.8;
+          const noteColorFactor = Math.min(1, noteCount / 10);
+          textRef.current.material.color.setRGB(
+            1,
+            0.8 + 0.2 * pulseIntensity * noteColorFactor,
+            0.8 + 0.2 * (1 - noteColorFactor)
+          );
+        } else {
+          // Simple color for lower performance
+          textRef.current.material.color.setRGB(1, 1, 1);
+        }
       }
     }
     
-    // Update grid 
+    // Update grid with animation for high quality mode
     if (gridRef.current) {
-      // Use the proper tilted grid orientation that was originally specified
+      // Set proper grid rotation
       gridRef.current.rotation.x = Math.PI / 2;
+      
+      if (perfLevel === 'high') {
+        // Add breathing effect for high performance mode
+        const activeNoteCount = notesRef.current.length;
+        const heightFactor = Math.min(1, activeNoteCount / 20);
+        const breathe = Math.sin(time * 0.5) * 0.1 * heightFactor;
+        gridRef.current.position.y = breathe;
+        
+        // Small wobble effect in high performance mode
+        gridRef.current.rotation.z = Math.sin(time * 0.2) * 0.05 * (1 + heightFactor * 0.5);
+        
+        // Auto-rotate if enabled
+        if (visualizerSettings.autoRotate) {
+          gridRef.current.rotation.y += delta * 0.1;
+        }
+      }
     }
     
     // Update particles
@@ -580,16 +710,28 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
       updateParticles(adjustedDelta);
     }
     
-    // Update glow effect with a constant value
+    // Update glow effect based on performance level
     if (glowRef.current) {
-      glowRef.current.scale.setScalar(1.2);
-      
-      if (glowRef.current.material) {
-        glowRef.current.material.opacity = 0.15;
+      if (perfLevel === 'high') {
+        const activeNoteCount = notesRef.current.length;
+        const maxGlowIntensity = 0.5;
+        const glowIntensity = Math.min(1, activeNoteCount / 40) * maxGlowIntensity;
+        glowRef.current.scale.setScalar(1 + glowIntensity);
+        
+        if (glowRef.current.material) {
+          glowRef.current.material.opacity = 0.2;
+        }
+      } else {
+        // Constant glow for medium/low performance
+        glowRef.current.scale.setScalar(1.2);
+        
+        if (glowRef.current.material) {
+          glowRef.current.material.opacity = 0.15;
+        }
       }
     }
     
-    // Update cell colors and animations with more visible effects
+    // Update cell colors and animations with more visible effects, including age tracking
     cellsRef.current.forEach((cell, index) => {
       if (!cell) return;
       
@@ -613,6 +755,9 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
         // Even inactive cells have a slight height variation
         cell.scale.y = 0.1 * pulseFactor; 
         cell.position.y = cell.scale.y / 2;
+        
+        // Reset generation counter for inactive cells
+        cellData.generationsAlive = 0;
         
         // Add slight color variation based on position for visual interest
         const hue = ((x + y) % 20) / 20;
@@ -651,12 +796,26 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
       
       // Apply visual updates if this cell is active
       if (activeNote) {
+        // Mark cell as active and increment its alive generations counter
         cell.userData.active = true;
+        
+        // Increment generation counter for cells that remain alive
+        if (!cell.userData.generationsAlive) {
+          cell.userData.generationsAlive = 0;
+        }
+        
+        // Increment the generation counter for this cell data
+        cellData.generationsAlive = (cellData.generationsAlive || 0) + 1;
+        // Cap at 10 generations for color mapping
+        cellData.generationsAlive = Math.min(10, cellData.generationsAlive);
+        
+        // Age of this instance of activity
         const age = (Date.now() - activeNote.birthTime) / 1000;
         const intensity = Math.max(0, Math.min(1, 1.5 - age));
         
-        // Scale the cell height based on velocity and activity state
+        // Scale the cell height based on velocity, activity state, and generations alive
         let heightScale = 0.1;
+        const generationBoost = Math.min(1, cellData.generationsAlive / 10) * 0.3;
         
         switch (activeNote.state) {
           case 'birth':
@@ -668,15 +827,15 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
             heightScale = 0.1 + (activeNote.velocity / 127) * 0.8 * Math.max(0.3, intensity);
             break;
           default: // 'active'
-            // Standard active cells
-            heightScale = 0.1 + (activeNote.velocity / 127) * 1.5 * Math.max(0.2, intensity);
+            // Standard active cells - taller when they've been alive longer
+            heightScale = 0.1 + (activeNote.velocity / 127) * 1.5 * Math.max(0.2, intensity) + generationBoost;
         }
         
         // Apply height scale
         cell.scale.y = heightScale;
         cell.position.y = heightScale / 2;
         
-        // Apply color based on state and age
+        // Base color based on state
         let color = colors.active;
         
         switch (activeNote.state) {
@@ -699,22 +858,83 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
             color = colors.active;
         }
         
+        // Create an age-based color that transitions as the cell gets older
+        // Each generation changes the color to create a visually interesting pattern
+        const cellAge = cellData.generationsAlive || 1;
+        let ageColor = new THREE.Color();
+        
+        if (cellAge <= 1) {
+          // New cells get the standard color
+          ageColor.copy(color);
+        } else {
+          // Map generations alive (1-10) to a color gradient
+          // Change hue based on generation, shifting from blue to magenta to gold
+          const hueShift = (cellAge - 1) / 9; // 0 to 1 range for generations 1-10
+          
+          if (perfLevel === 'high') {
+            // More complex coloring for high performance mode
+            switch (activeNote.state) {
+              case 'birth':
+                // Birth cells shift from green to yellow to red
+                ageColor.setHSL(0.35 - (hueShift * 0.35), 0.8, 0.6);
+                break;
+              case 'harmony':
+                // Harmony cells shift from purple to pink to orange
+                ageColor.setHSL(0.75 - (hueShift * 0.25), 0.7, 0.6);
+                break;
+              case 'stable':
+                // Stable cells shift from teal to blue to purple
+                ageColor.setHSL(0.5 - (hueShift * 0.25), 0.7, 0.5);
+                break;
+              default: // 'active'
+                // Active cells shift from blue to cyan to lime
+                ageColor.setHSL(0.6 - (hueShift * 0.3), 0.7, 0.5 + (hueShift * 0.2));
+            }
+          } else {
+            // Simpler version for medium/low performance
+            // Shift from base color toward a secondary color based on age
+            const baseHue = {
+              birth: 0.3, // Green
+              harmony: 0.8, // Purple
+              stable: 0.5, // Teal
+              active: 0.6  // Blue
+            }[activeNote.state] || 0.6;
+            
+            const targetHue = baseHue - 0.3; // Shift hue by 30%
+            const resultHue = baseHue - (hueShift * 0.3);
+            
+            ageColor.setHSL(resultHue, 0.7, 0.5 + (hueShift * 0.2));
+          }
+        }
+        
         // Blend color based on age for transition effects - scale transition time with tempo
         const noteTransitionTime = noteInterval / 1000; // Convert interval from ms to seconds
         const shortTransitionTime = Math.max(0.1, Math.min(0.3, noteTransitionTime * 0.5));
         const longTransitionTime = Math.max(0.3, Math.min(1.0, noteTransitionTime * 2));
         
         if (age < shortTransitionTime) {
-          cell.material.color.copy(color);
+          // New activations use the age color directly
+          cell.material.color.copy(ageColor);
         } else {
-          // Gradually fade to regular active color with timing scaled to note interval
+          // Gradually fade the color with timing scaled to note interval
           const transitionProgress = Math.min(1, (age - shortTransitionTime) / longTransitionTime);
-          cell.material.color.copy(color).lerp(colors.active, transitionProgress);
+          
+          // For high performance, more interesting color transition
+          if (perfLevel === 'high') {
+            // Pulse between age color and a slightly different color
+            const pulseAmount = Math.sin(time * 3 + x * 0.2 + y * 0.3) * 0.1 + 0.9;
+            const pulseColor = new THREE.Color(ageColor).multiplyScalar(pulseAmount);
+            cell.material.color.copy(ageColor).lerp(pulseColor, transitionProgress);
+          } else {
+            // Simpler fade for medium/low performance
+            cell.material.color.copy(ageColor).lerp(colors.active, transitionProgress);
+          }
         }
         
-        // Add glow effect with emission based on state
-        cell.material.emissive.copy(cell.material.color).multiplyScalar(0.5);
-        cell.material.emissiveIntensity = intensity;
+        // Add glow effect with emission based on state, with stronger emission for older cells
+        const ageEmissionBoost = Math.min(1, cellData.generationsAlive / 10) * 0.3;
+        cell.material.emissive.copy(cell.material.color).multiplyScalar(0.5 + ageEmissionBoost);
+        cell.material.emissiveIntensity = intensity + ageEmissionBoost;
         
         // Add hover effect if this is the hovered cell (only in high/medium perf)
         if (hoveredCell && hoveredCell[0] === x && hoveredCell[1] === y && perfLevel !== 'low') {
@@ -722,9 +942,20 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
           cell.material.emissiveIntensity = Math.max(intensity, 0.5);
         }
         
-        // Create trail effect for active cells (high perf only)
-        if (trailsRef.current[index] && perfLevel === 'high' && activeNote.state === 'birth') {
-          trailsRef.current[index].visible = true;
+        // Add age-based trail effects
+        const trailVisible = cellData.generationsAlive >= 3 && perfLevel === 'high';
+        if (trailsRef.current[index]) {
+          // Show trails for cells that have been alive for a while
+          trailsRef.current[index].visible = trailVisible;
+          
+          // Adjust trail color based on age
+          if (trailVisible && trailsRef.current[index].material) {
+            // Use a color based on cell age
+            const ageRatio = Math.min(1, (cellData.generationsAlive - 3) / 7); // 0-1 for generations 3-10
+            const trailHue = 0.6 - (ageRatio * 0.6); // Shift from blue to red
+            const trailColor = new THREE.Color().setHSL(trailHue, 0.8, 0.6);
+            trailsRef.current[index].material.color = trailColor;
+          }
         }
       } else {
         // Not active - hide trails
@@ -749,6 +980,47 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
         Cellular Automaton
       </Text>
       
+      {/* Cell Age Legend (only shown in high performance mode) */}
+      {perfLevel === 'high' && (
+        <group position={[0, 4, 0]}>
+          <Text
+            position={[0, 0, 0]}
+            fontSize={0.4}
+            color="white"
+            anchorX="center"
+            anchorY="middle"
+          >
+            Cell Age: Colors change as cells live longer (1-10 generations)
+          </Text>
+          
+          {/* Color gradient legend boxes for cell age */}
+          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((age, i) => {
+            // Calculate colors similar to the age-based colors in the main render loop
+            const ageRatio = age / 9;
+            const hue = 0.6 - (ageRatio * 0.3);
+            const color = new THREE.Color().setHSL(hue, 0.7, 0.5 + (ageRatio * 0.2));
+            
+            return (
+              <group key={`legend-${i}`} position={[-4.5 + i, -0.5, 0]}>
+                <mesh position={[0, 0, 0]} scale={[0.2, 0.2, 0.05]}>
+                  <boxGeometry />
+                  <meshBasicMaterial color={color} />
+                </mesh>
+                <Text
+                  position={[0, -0.3, 0]}
+                  fontSize={0.25}
+                  color="white"
+                  anchorX="center"
+                  anchorY="middle"
+                >
+                  {age + 1}
+                </Text>
+              </group>
+            );
+          })}
+        </group>
+      )}
+      
       {/* Basic environmental lighting for better compatibility */}
       <ambientLight intensity={0.6} /> 
       <pointLight position={[0, 5, 0]} intensity={0.7} color="#6688ff" />
@@ -771,7 +1043,7 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
       
       {/* Grid - rotate to be more visible from top view */}
       <group ref={gridRef} rotation={[0, 0, 0]}>
-        {/* Floor plane for grid - always visible for better clarity */}
+        {/* Floor plane for grid - always visible for better clarity with animation */}
         <mesh 
           position={[0, -0.05, 0]} 
           rotation={[-Math.PI / 2, 0, 0]}
@@ -792,7 +1064,12 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
               key={`cell-${index}`}
               ref={el => cellsRef.current[index] = el}
               position={[...cell.position]}
-              userData={{ active: false }}
+              userData={{ 
+                active: false,
+                generationsAlive: cell.generationsAlive || 0,
+                birthTimestamp: cell.birthTimestamp || 0,
+                lastActiveTimestamp: cell.lastActiveTimestamp || 0
+              }}
               onClick={() => setHoveredCell(cell.coords)}
               onPointerEnter={() => setHoveredCell(cell.coords)}
               onPointerLeave={() => setHoveredCell(null)}
