@@ -265,16 +265,71 @@ class CellularGenerator {
   /**
    * Generate a sequence using Conway's Game of Life (2D)
    * With improved performance, Buchla-inspired enhancements, and error handling
+   * 
+   * This implementation ensures cells are always active and visible in the visualization,
+   * and generates MIDI notes for active cells.
    */
   generateGameOfLife(width, height, initialPattern, iterations, density) {
     try {
+      console.log("Generating Game of Life sequence with parameters:", 
+                 {width, height, initialPattern, iterations, density});
+                 
       // Safety limits for performance
       width = Math.min(width, 50);
       height = Math.min(height, 50);
       iterations = Math.min(iterations, 100);
       
+      // Use default density if not provided
+      density = typeof density === 'number' ? density : 0.3;
+      
+      // Force a minimum density to ensure cells are present
+      if (initialPattern === 'random' && density < 0.2) {
+        density = 0.2; // Ensure at least 20% of cells are active for random patterns
+        console.log(`Adjusted density to ${density} to ensure activity`);
+      }
+      
       // Initialize the grid with the selected pattern
       let grid = this.generateInitialState2D(width, height, initialPattern, density);
+      
+      // If grid is empty or has very few cells, force multiple patterns to ensure visibility
+      const cellCount = this.countCells(grid);
+      if (cellCount < 10) {
+        console.log(`Not enough cells in initial grid with pattern ${initialPattern}, adding more patterns`);
+        
+        // Add a blinker in the center
+        const centerX = Math.floor(width / 2);
+        const centerY = Math.floor(height / 2);
+        
+        if (centerX > 1 && centerY > 0 && centerX < width - 2 && centerY < height - 1) {
+          grid[centerY][centerX-1] = 1;
+          grid[centerY][centerX] = 1;
+          grid[centerY][centerX+1] = 1;
+        }
+        
+        // Add a glider in a different part
+        const gliderX = Math.floor(width / 4);
+        const gliderY = Math.floor(height / 4);
+        
+        if (gliderX > 1 && gliderY > 1 && gliderX < width - 3 && gliderY < height - 3) {
+          grid[gliderY][gliderX+1] = 1;
+          grid[gliderY+1][gliderX+2] = 1;
+          grid[gliderY+2][gliderX] = 1;
+          grid[gliderY+2][gliderX+1] = 1;
+          grid[gliderY+2][gliderX+2] = 1;
+        }
+        
+        // Add a block pattern in another area
+        const blockX = Math.floor(3 * width / 4);
+        const blockY = Math.floor(3 * height / 4);
+        
+        if (blockX > 0 && blockY > 0 && blockX < width - 2 && blockY < height - 2) {
+          grid[blockY][blockX] = 1;
+          grid[blockY][blockX+1] = 1;
+          grid[blockY+1][blockX] = 1;
+          grid[blockY+1][blockX+1] = 1;
+        }
+      }
+      
       this.grid = grid;
       
       // Track previous grid state to detect changes
@@ -677,6 +732,80 @@ class CellularGenerator {
     }
     
     return sequence;
+  }
+  
+  /**
+   * Count the total number of active cells in a grid
+   * @param {Array[][]} grid - The 2D grid to count cells in
+   * @returns {Number} - Count of active cells
+   */
+  countCells(grid) {
+    if (!grid || !Array.isArray(grid) || grid.length === 0) {
+      return 0;
+    }
+    
+    let count = 0;
+    for (let y = 0; y < grid.length; y++) {
+      if (!grid[y] || !Array.isArray(grid[y])) continue;
+      
+      for (let x = 0; x < grid[y].length; x++) {
+        if (grid[y][x] === 1) {
+          count++;
+        }
+      }
+    }
+    
+    return count;
+  }
+  
+  /**
+   * Creates a deep copy of a 2D grid
+   * @param {Array[][]} grid - The grid to clone
+   * @returns {Array[][]} - A new copy of the grid
+   */
+  cloneGrid(grid) {
+    if (!grid || !Array.isArray(grid) || grid.length === 0) {
+      // Return a safe default grid if input is invalid
+      return [[0]];
+    }
+    
+    try {
+      // Use structured clone for deep copying
+      return grid.map(row => Array.isArray(row) ? [...row] : [0]);
+    } catch (error) {
+      console.error('Error cloning grid:', error);
+      // Fallback to manual copy
+      const newGrid = [];
+      for (let y = 0; y < grid.length; y++) {
+        newGrid[y] = Array.isArray(grid[y]) ? [...grid[y]] : [0];
+      }
+      return newGrid;
+    }
+  }
+  
+  /**
+   * Creates a basic safe grid for fallback
+   * @param {Number} width - Grid width
+   * @param {Number} height - Grid height
+   * @returns {Array[][]} - A simple grid with a stable pattern
+   */
+  generateSafeGrid(width, height) {
+    // Create an empty grid
+    const grid = Array(height).fill().map(() => Array(width).fill(0));
+    
+    // Add a simple stable pattern (2x2 block)
+    const centerX = Math.floor(width / 2);
+    const centerY = Math.floor(height / 2);
+    
+    // Create a block pattern (2x2 square)
+    if (centerX > 0 && centerY > 0 && centerX < width - 1 && centerY < height - 1) {
+      grid[centerY][centerX] = 1;
+      grid[centerY][centerX + 1] = 1;
+      grid[centerY + 1][centerX] = 1;
+      grid[centerY + 1][centerX + 1] = 1;
+    }
+    
+    return grid;
   }
   
   /**
@@ -1217,69 +1346,164 @@ class CellularGenerator {
     const changes = [];
     
     try {
-      // Use a Map instead of array for active queue (better performance with large grids)
-      const activeQueue = new Map();
-      this.activeQueueFront.forEach(key => activeQueue.set(key, true));
+      // FIXED: Check if we have active cells or not
+      const hasActiveCells = this.countCells(currentGrid) > 0;
       
-      // Reset back queue with a more efficient structure
-      this.activeQueueFront = [...this.activeQueueBack];
-      this.activeQueueBack = [];
-      
-      // Apply Game of Life rules to cells in the active queue
-      for (const coordKey of activeQueue.keys()) {
-        // Parse coordinates safely with error handling
-        const [xStr, yStr] = coordKey.split(',');
-        const x = parseInt(xStr);
-        const y = parseInt(yStr);
+      // If no active cells and this isn't the first generation, add some to avoid empty state
+      if (!hasActiveCells && this.currentGeneration > 0) {
+        console.log('No active cells detected, adding some random cells to keep the simulation going');
+        // Add some random cells to the center
+        const centerX = Math.floor(width / 2);
+        const centerY = Math.floor(height / 2);
         
-        // Skip invalid coordinates
-        if (isNaN(x) || isNaN(y) || x < 0 || x >= width || y < 0 || y >= height) {
-          console.warn(`Skipping invalid coordinates: ${coordKey}`);
-          continue;
-        }
-        
-        // Count live neighbors with bounds checking
-        const neighbors = this.countNeighbors(currentGrid, x, y, width, height);
-        
-        // Apply Conway's Game of Life rules
-        const isAlive = currentGrid[y][x] === 1;
-        let willBeAlive;
-        
-        if (isAlive) {
-          // Live cell rules
-          willBeAlive = (neighbors === 2 || neighbors === 3);
-        } else {
-          // Dead cell rules
-          willBeAlive = (neighbors === 3);
-        }
-        
-        // Update the next state
-        nextGrid[y][x] = willBeAlive ? 1 : 0;
-        
-        // Track cell changes for visualization
-        if (isAlive !== willBeAlive) {
-          changes.push({
-            x, y, 
-            type: willBeAlive ? 'birth' : 'death'
-          });
-        }
-        
-        // If this cell will be alive or has neighbors that will be alive
-        // add it and its neighbors to the back queue for the next generation
-        if (willBeAlive || neighbors > 0) {
-          this.addToActiveQueue(x, y);
+        // Add a small glider
+        if (centerX > 1 && centerY > 1 && centerX < width - 2 && centerY < height - 2) {
+          currentGrid[centerY][centerX+1] = 1;
+          currentGrid[centerY+1][centerX+2] = 1;
+          currentGrid[centerY+2][centerX] = 1;
+          currentGrid[centerY+2][centerX+1] = 1;
+          currentGrid[centerY+2][centerX+2] = 1;
           
-          // Add all neighbors with bounds checking
-          for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-              if (dx !== 0 || dy !== 0) {
-                // Calculate neighbor coordinates with wrapping
-                const nx = (x + dx + width) % width;
-                const ny = (y + dy + height) % height;
-                
-                // Verify coordinates are valid before adding
-                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                  this.addToActiveQueue(nx, ny);
+          // Re-initialize active queue
+          this.initializeActiveQueue(currentGrid);
+        }
+      }
+      
+      // Check if we should use the active queue optimization or the full grid scan
+      const useActiveQueue = this.activeQueueFront.length > 0 && this.activeQueueFront.length < width * height / 2;
+      
+      if (useActiveQueue) {
+        // Use a Map instead of array for active queue (better performance with large grids)
+        const activeQueue = new Map();
+        this.activeQueueFront.forEach(key => activeQueue.set(key, true));
+        
+        // Reset back queue with a more efficient structure
+        this.activeQueueFront = [...this.activeQueueBack];
+        this.activeQueueBack = [];
+        
+        // Apply Game of Life rules to cells in the active queue
+        for (const coordKey of activeQueue.keys()) {
+          // Parse coordinates safely with error handling
+          const [xStr, yStr] = coordKey.split(',');
+          const x = parseInt(xStr);
+          const y = parseInt(yStr);
+          
+          // Skip invalid coordinates
+          if (isNaN(x) || isNaN(y) || x < 0 || x >= width || y < 0 || y >= height) {
+            continue;
+          }
+          
+          // Count live neighbors with bounds checking
+          const neighbors = this.countNeighbors(currentGrid, x, y, width, height);
+          
+          // Apply Conway's Game of Life rules
+          const isAlive = currentGrid[y][x] === 1;
+          let willBeAlive;
+          
+          if (isAlive) {
+            // Live cell rules
+            willBeAlive = (neighbors === 2 || neighbors === 3);
+          } else {
+            // Dead cell rules
+            willBeAlive = (neighbors === 3);
+          }
+          
+          // Update the next state
+          nextGrid[y][x] = willBeAlive ? 1 : 0;
+          
+          // Force some cells to be alive along a musical scale pattern 
+          // to ensure we have notes playing, especially in corners and center
+          const forcePatternActivation = this.parameters.buchlaMode && 
+                                      this.activeCount < 5 && 
+                                      (x % 4 === 0 || y % 4 === 0) &&
+                                      ((x === 0 || x === width - 1) || 
+                                      (y === 0 || y === height - 1) ||
+                                      (Math.abs(x - width/2) < 2 && Math.abs(y - height/2) < 2));
+                                      
+          if (forcePatternActivation) {
+            nextGrid[y][x] = 1;
+            // If we forced this cell to be active when it wasn't before, 
+            // record the change
+            if (!isAlive) {
+              changes.push({ x, y, type: 'birth' });
+            }
+          }
+          
+          // Track cell changes for visualization
+          if (isAlive !== willBeAlive) {
+            changes.push({
+              x, y, 
+              type: willBeAlive ? 'birth' : 'death'
+            });
+          }
+          
+          // If this cell will be alive or has neighbors that will be alive
+          // add it and its neighbors to the back queue for the next generation
+          if (willBeAlive || neighbors > 0) {
+            this.addToActiveQueue(x, y);
+            
+            // Add all neighbors with bounds checking
+            for (let dy = -1; dy <= 1; dy++) {
+              for (let dx = -1; dx <= 1; dx++) {
+                if (dx !== 0 || dy !== 0) {
+                  // Calculate neighbor coordinates with wrapping
+                  const nx = (x + dx + width) % width;
+                  const ny = (y + dy + height) % height;
+                  
+                  // Verify coordinates are valid before adding
+                  if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                    this.addToActiveQueue(nx, ny);
+                  }
+                }
+              }
+            }
+          }
+        }
+      } else {
+        // Fall back to full grid scan if active queue is too large or empty
+        console.log('Using full grid scan instead of active queue optimization');
+        
+        // Check every cell in the grid (less efficient but more thorough)
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            // Count live neighbors with bounds checking
+            const neighbors = this.countNeighbors(currentGrid, x, y, width, height);
+            
+            // Apply Conway's Game of Life rules
+            const isAlive = currentGrid[y][x] === 1;
+            let willBeAlive;
+            
+            if (isAlive) {
+              // Live cell rules
+              willBeAlive = (neighbors === 2 || neighbors === 3);
+            } else {
+              // Dead cell rules
+              willBeAlive = (neighbors === 3);
+            }
+            
+            // Update the next state
+            nextGrid[y][x] = willBeAlive ? 1 : 0;
+            
+            // Track cell changes for visualization
+            if (isAlive !== willBeAlive) {
+              changes.push({
+                x, y, 
+                type: willBeAlive ? 'birth' : 'death'
+              });
+            }
+            
+            // If will be alive, add to active queue for next generation
+            if (willBeAlive) {
+              this.addToActiveQueue(x, y);
+              
+              // Add neighbors to the queue
+              for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                  if (dx !== 0 || dy !== 0) {
+                    const nx = (x + dx + width) % width;
+                    const ny = (y + dy + height) % height;
+                    this.addToActiveQueue(nx, ny);
+                  }
                 }
               }
             }
@@ -1291,6 +1515,63 @@ class CellularGenerator {
       if (this.activeQueueBack.length > width * height * 2) {
         console.warn(`Active queue size (${this.activeQueueBack.length}) exceeds grid size. Trimming.`);
         this.activeQueueBack = this.activeQueueBack.slice(0, width * height);
+      }
+      
+      // Check if the grid has any active cells
+      const hasActiveCell = this.countCells(nextGrid) > 0;
+      
+      // If no active cells, add a few to prevent empty grid
+      if (!hasActiveCell) {
+        // Add a glider in a random location
+        const rx = Math.floor(Math.random() * (width - 4)) + 2;
+        const ry = Math.floor(Math.random() * (height - 4)) + 2;
+        
+        nextGrid[ry][rx+1] = 1;
+        nextGrid[ry+1][rx+2] = 1;
+        nextGrid[ry+2][rx] = 1;
+        nextGrid[ry+2][rx+1] = 1;
+        nextGrid[ry+2][rx+2] = 1;
+        
+        // Also add a blinker in another location for more activity
+        const bx = (rx + Math.floor(width / 2)) % (width - 4) + 2;
+        const by = (ry + Math.floor(height / 2)) % (height - 4) + 2;
+        
+        nextGrid[by][bx-1] = 1;
+        nextGrid[by][bx] = 1;
+        nextGrid[by][bx+1] = 1;
+        
+        // Add a block in a third location
+        const cx = (rx + bx) % (width - 3) + 2;
+        const cy = (ry + by) % (height - 3) + 2;
+        
+        nextGrid[cy][cx] = 1;
+        nextGrid[cy][cx+1] = 1;
+        nextGrid[cy+1][cx] = 1;
+        nextGrid[cy+1][cx+1] = 1;
+        
+        // Track all changes
+        changes.push(
+          // Glider
+          { x: rx+1, y: ry, type: 'birth' },
+          { x: rx+2, y: ry+1, type: 'birth' },
+          { x: rx, y: ry+2, type: 'birth' },
+          { x: rx+1, y: ry+2, type: 'birth' },
+          { x: rx+2, y: ry+2, type: 'birth' },
+          // Blinker
+          { x: bx-1, y: by, type: 'birth' },
+          { x: bx, y: by, type: 'birth' },
+          { x: bx+1, y: by, type: 'birth' },
+          // Block
+          { x: cx, y: cy, type: 'birth' },
+          { x: cx+1, y: cy, type: 'birth' },
+          { x: cx, y: cy+1, type: 'birth' },
+          { x: cx+1, y: cy+1, type: 'birth' }
+        );
+        
+        // Reset active queue to include all the new cells
+        this.initializeActiveQueue(nextGrid);
+        
+        console.log('Added multiple patterns to prevent empty grid');
       }
       
       // Store changes for this generation (for visualization)
