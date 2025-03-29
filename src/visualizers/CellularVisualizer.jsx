@@ -1167,11 +1167,11 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
         )}
         
         {/* Grid lines */}
-        <gridHelper 
+        {/* <gridHelper 
           args={[size * spacing * 1.02, size, colors.grid.getHex(), colors.grid.getHex()]} 
           position={[0, 0.01, 0]}
           rotation={[Math.PI / 2, 0, 0]}
-        />
+        /> */}
       </group>
     </group>
   );
