@@ -980,69 +980,28 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
         Cellular Automaton
       </Text>
       
-      {/* Cell Age Legend (only shown in high performance mode) */}
-      {perfLevel === 'high' && (
-        <group position={[0, 4, 0]}>
-          <Text
-            position={[0, 0, 0]}
-            fontSize={0.4}
-            color="white"
-            anchorX="center"
-            anchorY="middle"
-          >
-            Cell Age: Colors change as cells live longer (1-10 generations)
-          </Text>
-          
-          {/* Color gradient legend boxes for cell age */}
-          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((age, i) => {
-            // Calculate colors similar to the age-based colors in the main render loop
-            const ageRatio = age / 9;
-            const hue = 0.6 - (ageRatio * 0.3);
-            const color = new THREE.Color().setHSL(hue, 0.7, 0.5 + (ageRatio * 0.2));
-            
-            return (
-              <group key={`legend-${i}`} position={[-4.5 + i, -0.5, 0]}>
-                <mesh position={[0, 0, 0]} scale={[0.2, 0.2, 0.05]}>
-                  <boxGeometry />
-                  <meshBasicMaterial color={color} />
-                </mesh>
-                <Text
-                  position={[0, -0.3, 0]}
-                  fontSize={0.25}
-                  color="white"
-                  anchorX="center"
-                  anchorY="middle"
-                >
-                  {age + 1}
-                </Text>
-              </group>
-            );
-          })}
-        </group>
-      )}
-      
       {/* Basic environmental lighting for better compatibility */}
       <ambientLight intensity={0.6} /> 
       <pointLight position={[0, 5, 0]} intensity={0.7} color="#6688ff" />
       <pointLight position={[5, 3, 5]} intensity={0.5} color="#88aaff" />
       
-      {/* Enhanced glow effect under the grid */}
-      <mesh 
-        ref={glowRef}
-        position={[0, -0.2, 0]} 
-        rotation={[-Math.PI / 2, 0, 0]}
-      >
-        <planeGeometry args={[size * spacing * 2, size * spacing * 2]} />
-        <meshBasicMaterial 
-          color={0x224466} 
-          transparent={true} 
-          opacity={0.3} 
-          blending={THREE.AdditiveBlending}
-        />
-      </mesh>
-      
       {/* Grid - rotate to be more visible from top view */}
       <group ref={gridRef} rotation={[0, 0, 0]}>
+        {/* Enhanced glow effect under the grid */}
+        <mesh 
+          ref={glowRef}
+          position={[0, -0.2, 0]} 
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
+          <planeGeometry args={[size * spacing * 2, size * spacing * 2]} />
+          <meshBasicMaterial 
+            color={0x224466} 
+            transparent={true} 
+            opacity={0.3} 
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+        
         {/* Floor plane for grid - always visible for better clarity with animation */}
         <mesh 
           position={[0, -0.05, 0]} 
@@ -1085,30 +1044,7 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
                 opacity={0.9}
               />
               
-              {/* Note labels - only shown if showLabels is true and we have high performance */}
-              {showLabels && perfLevel === 'high' && (
-                <Billboard
-                  follow={true}
-                  visible={!!notesRef.current.find(n => 
-                    n.column === cell.coords[0] && 
-                    (is2D ? n.row === cell.coords[1] : cell.coords[1] === 0)
-                  )}
-                  position={[0, 0.5, 0]}
-                >
-                  <Text
-                    fontSize={0.25}
-                    color="white"
-                    anchorX="center"
-                    anchorY="bottom"
-                    fillOpacity={0.8}
-                  >
-                    {getPitchName(notesRef.current.find(n => 
-                      n.column === cell.coords[0] && 
-                      (is2D ? n.row === cell.coords[1] : cell.coords[1] === 0)
-                    )?.pitch || 60)}
-                  </Text>
-                </Billboard>
-              )}
+              {/* Note labels removed */}
             </mesh>
             
             {/* Add trails for birth/active cells in high performance mode */}
