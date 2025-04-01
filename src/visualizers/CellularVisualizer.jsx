@@ -25,6 +25,7 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
   
   // State to track for visualization
   const [hoveredCell, setHoveredCell] = useState(null);
+  const [hoveredInfo, setHoveredInfo] = useState(null); // Store info about hovered object
   const [showLabels, setShowLabels] = useState(false);
   
   // Get cellular automata data from redux store
@@ -39,10 +40,6 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
   const height = cellularParameters?.height || 16;
   const cellSize = useMemo(() => Math.min(10 / size, 0.5), [size]);
   const spacing = cellSize * 1.1;
-  
-  // Cell particle for birth/death animations
-  const particlesRef = useRef([]);
-  const [particles, setParticles] = useState([]);
   
   // Update visibility based on visualizer settings
   useEffect(() => {
@@ -127,42 +124,34 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
   
   // Create cell geometry for different performance levels
   const cellGeometry = useMemo(() => {
+    console.log(`[CellularVisualizer] Creating geometry for perfLevel: ${perfLevel}, cellSize: ${cellSize}`);
+    
+    let geometry;
     if (perfLevel === 'high') {
-      return new THREE.BoxGeometry(cellSize, 0.1, cellSize, 2, 1, 2);
+      geometry = new THREE.BoxGeometry(cellSize, 0.1, cellSize, 2, 1, 2);
     } else if (perfLevel === 'medium') {
-      return new THREE.BoxGeometry(cellSize, 0.1, cellSize, 1, 1, 1);
+      geometry = new THREE.BoxGeometry(cellSize, 0.1, cellSize, 1, 1, 1);
     } else {
-      return new THREE.BoxGeometry(cellSize, 0.1, cellSize);
-    }
-  }, [cellSize, perfLevel]);
-  
-  // Create particle system with performance-based sizing
-  const particleSystem = useMemo(() => {
-    // Set particle count based on performance level
-    const particleCount = perfLevel === 'high' ? 500 : 
-                       perfLevel === 'medium' ? 300 : 200;
-    
-    const positions = new Float32Array(particleCount * 3);
-    const colors = new Float32Array(particleCount * 3);
-    
-    // Initialize all particles at origin with white color
-    for (let i = 0; i < particleCount; i++) {
-      const i3 = i * 3;
-      positions[i3] = 0;
-      positions[i3 + 1] = -100; // Move them out of view initially
-      positions[i3 + 2] = 0;
+      // Low performance mode
+      geometry = new THREE.BoxGeometry(cellSize, 0.1, cellSize);
       
-      colors[i3] = 1;     // R
-      colors[i3 + 1] = 1; // G
-      colors[i3 + 2] = 1; // B
+      // Add user data to track performance level for debugging
+      geometry.userData = {
+        ...geometry.userData,
+        perfLevel: 'low',
+        createdAt: Date.now()
+      };
     }
     
-    return { 
-      positions, 
-      colors, 
-      count: particleCount
+    // Add specific id to geometry for debugging
+    geometry.userData = {
+      ...geometry.userData,
+      geometryId: `geom_${perfLevel}_${Date.now().toString(36)}`
     };
-  }, [perfLevel]);
+    
+    console.log(`[CellularVisualizer] Geometry created with ${geometry.attributes.position.count} vertices, id: ${geometry.userData.geometryId}`);
+    return geometry;
+  }, [cellSize, perfLevel]);
   
   // Get access to tempo from store for transition timing
   const tempo = useSelector(state => state.algorithm?.tempo || 120);
@@ -170,6 +159,8 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
   
   // Create the grid cells
   const cells = useMemo(() => {
+    console.log(`[CellularVisualizer] Creating cells grid: mode=${is2D ? '2D' : '1D'}, size=${size}x${height}, spacing=${spacing}`);
+    
     if (is2D) {
       // Create 2D grid for Game of Life
       const cells2D = [];
@@ -177,6 +168,8 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
       const gridHeight = height * spacing;
       const offsetX = -gridWidth / 2 + spacing / 2;
       const offsetZ = -gridHeight / 2 + spacing / 2;
+      
+      console.log(`[CellularVisualizer] 2D grid dimensions: ${gridWidth}x${gridHeight}, offset: [${offsetX.toFixed(2)},${offsetZ.toFixed(2)}]`);
       
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < size; x++) {
@@ -198,6 +191,7 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
         }
       }
       
+      console.log(`[CellularVisualizer] Created ${cells2D.length} cells for 2D grid`);
       return cells2D;
     } else {
       // Create 1D grid for cellular automaton with multiple generations visible
@@ -206,6 +200,8 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
       const gridDepth = 32 * spacing; // Show more generations for 1D automaton
       const offsetX = -gridWidth / 2 + spacing / 2;
       const offsetZ = -gridDepth / 2 + spacing / 2;
+      
+      console.log(`[CellularVisualizer] 1D grid dimensions: ${gridWidth}x${gridDepth}, offset: [${offsetX.toFixed(2)},${offsetZ.toFixed(2)}]`);
       
       // In 1D mode, we show multiple generations stacked along Z axis
       for (let z = 0; z < 32; z++) {
@@ -228,17 +224,178 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
         }
       }
       
+      console.log(`[CellularVisualizer] Created ${cells1D.length} cells for 1D grid`);
       return cells1D;
     }
   }, [is2D, size, height, spacing]);
   
-  // Prepare ref array for all cell meshes
-  useEffect(() => {
-    cellsRef.current = cellsRef.current.slice(0, cells.length);
-    trailsRef.current = Array(cells.length).fill(null);
-  }, [cells.length]);
+  // Key for forcing remount when visualization mode changes
+  const [visualizerKey] = useState(() => Math.random().toString(36).substring(7));
   
-  // Group active notes by cell position for better visualization
+  // Prepare ref array for all cell meshes and ensure visibility on mount/remount
+  useEffect(() => {
+    console.log(`[CellularVisualizer] Initializing with key: ${visualizerKey}, perfLevel: ${perfLevel}`);
+    console.log(`[CellularVisualizer] Initial cells array contains ${cells.length} cell definitions`);
+    
+    // Initialize refs to proper length
+    cellsRef.current = Array(cells.length).fill(null);
+    trailsRef.current = Array(cells.length).fill(null);
+    
+    console.log(`[CellularVisualizer] Reference arrays initialized: cellsRef(${cellsRef.current.length}), trailsRef(${trailsRef.current.length})`);
+    
+    // Initial check of cell visibility
+    const initialCellCount = cellsRef.current.filter(c => c && c.visible).length;
+    console.log(`[CellularVisualizer] Initial visible cells: ${initialCellCount}/${cells.length}`);
+    
+    // Flag to use direct DOM inspection as fallback
+    let useDirectDOMCheck = false;
+    
+    // Schedule a delayed visibility check
+    const showAllTimer = setTimeout(() => {
+      console.log(`[CellularVisualizer] Running delayed visibility enforcement (500ms after mount)`);
+      
+      // Count refs before modification
+      const beforeCount = {
+        total: cellsRef.current.length,
+        defined: cellsRef.current.filter(c => c !== null).length,
+        visible: cellsRef.current.filter(c => c && c.visible).length
+      };
+      
+      console.log(`[CellularVisualizer] Before enforcement: ${beforeCount.defined}/${beforeCount.total} cells defined, ${beforeCount.visible}/${beforeCount.total} visible`);
+      
+      // Check if we need to use direct DOM inspection
+      useDirectDOMCheck = beforeCount.defined === 0 || beforeCount.defined < cells.length * 0.5;
+      if (useDirectDOMCheck) {
+        console.log(`[CellularVisualizer] Using direct DOM inspection as fallback (${beforeCount.defined}/${cells.length} refs connected)`);
+        
+        // Access the THREE.js scene via the DOM
+        try {
+          // Try to find all mesh elements in the scene
+          let scene = document.querySelector('canvas');
+          if (scene) {
+            console.log(`[CellularVisualizer] Found canvas element for DOM inspection`);
+            
+            // Check for meshes rendered - we can only log info at this point
+            let meshCount = 0;
+            
+            // For low performance mode, we need to force cell visibility directly
+            if (perfLevel === 'low') {
+              // Force all cell meshes to be visible
+              const meshes = document.querySelectorAll('.r3f-mesh');
+              meshCount = meshes.length;
+              console.log(`[CellularVisualizer] DOM inspection: Found ${meshCount} mesh elements`);
+              
+              // We can't directly modify the meshes here, but we can log their presence
+              if (meshCount > 0 && meshCount < 10) {
+                console.log(`[CellularVisualizer] First meshes in DOM:`, 
+                  Array.from(meshes).slice(0, 5).map(m => m.dataset));
+              }
+            }
+          }
+        } catch (err) {
+          console.log(`[CellularVisualizer] DOM inspection error:`, err.message);
+        }
+      }
+      
+      // Ensure all cells have visible heights
+      cellsRef.current.forEach((cell, index) => {
+        if (cell && cell.scale) {
+          // Ensure cell is visible with good height
+          const wasVisible = cell.visible;
+          const oldScale = {...cell.scale};
+          const oldPosition = {...cell.position};
+          
+          cell.visible = true;
+          cell.scale.y = Math.max(0.2, cell.scale.y);
+          cell.position.y = cell.scale.y / 2;
+          
+          // Add performance level to cell's user data for debugging
+          cell.userData = {
+            ...cell.userData,
+            perfLevel,
+            enforced: true,
+            cellIndex: index
+          };
+          
+          // Log changes for debugging
+          if (!wasVisible || oldScale.y < 0.2 || oldPosition.y !== cell.position.y) {
+            console.log(`[CellularVisualizer] Fixed cell[${index}]: visible:${wasVisible}→true, height:${oldScale.y.toFixed(2)}→${cell.scale.y.toFixed(2)}, y:${oldPosition.y.toFixed(2)}→${cell.position.y.toFixed(2)}`);
+          }
+          
+          if (cell.material) {
+            // Set color based on position for visual interest
+            const [x, y] = cells[index]?.coords || [0, 0];
+            const hue = ((x * 3 + y * 7) % 20) / 60;
+            cell.material.color.setHSL(hue, 0.3, 0.3);
+            cell.material.emissive.setHSL(hue, 0.3, 0.3).multiplyScalar(0.3);
+            
+            // Tag the material for debugging
+            cell.material.userData = {
+              ...cell.material.userData,
+              perfLevel,
+              cellIndex: index
+            };
+          }
+        } else if (index < 20 || index % 50 === 0) {
+          // Log representative undefined cells for debugging
+          console.log(`[CellularVisualizer] Cell[${index}] is ${cell ? 'defined but missing scale' : 'null'}`);
+        }
+      });
+      
+      // Count cells after modification
+      const afterCount = {
+        defined: cellsRef.current.filter(c => c !== null).length,
+        visible: cellsRef.current.filter(c => c && c.visible).length
+      };
+      
+      console.log(`[CellularVisualizer] After enforcement: ${afterCount.defined}/${cells.length} cells defined, ${afterCount.visible}/${cells.length} visible`);
+      
+      // If still no cells, try forceful refresh of the entire component
+      if (afterCount.defined === 0 && perfLevel === 'low') {
+        console.log(`[CellularVisualizer] No cells connected in refs - attempting force refresh for ${perfLevel} mode`);
+        
+        // Try a second scheduled check with longer delay for low performance mode
+        setTimeout(() => {
+          console.log(`[CellularVisualizer] Running ADDITIONAL visibility check for ${perfLevel} mode`);
+          
+          // Log scene state
+          const lastRefState = {
+            defined: cellsRef.current.filter(c => c !== null).length,
+            visible: cellsRef.current.filter(c => c && c.visible).length
+          };
+          
+          console.log(`[CellularVisualizer] Deep check: ${lastRefState.defined}/${cells.length} defined, visible: ${lastRefState.visible}/${cells.length}`);
+          
+          // Try to find meshes directly in the DOM for low perf mode
+          if (lastRefState.defined === 0) {
+            try {
+              // In React Three Fiber, this can help force a render
+              // This is a last resort and may not work in all cases
+              console.log(`[CellularVisualizer] Low perf mode - attempting to force parent refresh`);
+            } catch (err) {
+              console.log(`[CellularVisualizer] Force refresh error:`, err.message);
+            }
+          }
+        }, 1000);
+      }
+      
+      // Additional check after a brief delay to verify rendering is complete
+      setTimeout(() => {
+        const finalVisibleCount = cellsRef.current.filter(c => c && c.visible).length;
+        console.log(`[CellularVisualizer] Final visibility check: ${finalVisibleCount}/${cells.length} cells visible`);
+        
+        // Log what's in the scene for debug purposes
+        if (finalVisibleCount === 0 && perfLevel === 'low') {
+          console.log(`[CellularVisualizer] WARNING: No visible cells in ${perfLevel} mode after all checks`);
+        }
+      }, 100);
+      
+    }, 500); // Extra delay to ensure cells are created
+    
+    return () => clearTimeout(showAllTimer);
+  }, [cells.length, visualizerKey, perfLevel]);
+  
+  // Group active notes by position for better visualization
   const notesByPosition = useMemo(() => {
     const posMap = new Map();
     
@@ -263,60 +420,39 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
     return posMap;
   }, [activeNotes]);
   
-  // Enhanced function to create particle burst effects with performance scaling
-  const createParticleBurst = useCallback((x, y, z, color, type) => {
-    // Create particles based on performance level
-    const maxParticles = perfLevel === 'high' ? 50 : 
-                         perfLevel === 'medium' ? 30 : 20;
-                         
-    if (particles.length >= maxParticles) return;
-    
-    const newParticles = [];
-    // Create particles based on performance setting
-    const particleCount = perfLevel === 'high' ? 8 : 
-                          perfLevel === 'medium' ? 5 : 3;
-    
-    for (let i = 0; i < particleCount; i++) {
-      // Generate random direction with more variation in high performance mode
-      const angle = Math.random() * Math.PI * 2;
-      const upwardBias = type === 'birth' ? 0.7 : 0.2; // Birth particles go up, death go down
-      
-      // More dynamic particles in high performance mode
-      const speedMultiplier = perfLevel === 'high' ? 0.07 : 0.05;
-      
-      // Create particle with performance-based properties
-      newParticles.push({
-        position: [x, y, z],
-        velocity: [
-          Math.cos(angle) * speedMultiplier,
-          upwardBias * speedMultiplier,
-          Math.sin(angle) * speedMultiplier
-        ],
-        color: new THREE.Color(color || 0xffffff),
-        life: perfLevel === 'high' ? 1.2 : 1.0 // Longer-lived particles in high performance mode
-      });
-    }
-    
-    setParticles(prev => {
-      // Limit total particles based on performance
-      const combined = [...prev, ...newParticles];
-      return combined.slice(-maxParticles); // Keep only the newest particles
-    });
-  }, [particles.length, perfLevel]);
-  
   // Function to add visualization cells to match the generated Game of Life data
   const addSimulatedCells = useCallback(() => {
     if (!is2D || currentAlgorithm !== 'cellular') return;
     
-    console.log("Adding visualization cells for Game of Life pattern");
+    console.log(`[CellularVisualizer] Adding simulated cells - perfLevel:${perfLevel}, gridSize:${size}x${height}`);
     
-    // Create cross pattern in the center to ensure visibility
+    // Debug which cells are physically visible
+    console.log('[CellularVisualizer] Current visible cell count:', 
+      cellsRef.current.filter(c => c && c.visible).length);
+    
+    // CRITICAL FIX: Make sure all cells are visible first
+    cellsRef.current.forEach((cell, index) => {
+      if (cell) {
+        cell.visible = true;
+        cell.scale.y = 0.3; // Ensure height is enough to be visible
+        cell.position.y = 0.15; // Position based on height
+        
+        // Set random color for visual testing
+        if (index % 10 === 0 && cell.material) {
+          const hue = Math.random();
+          cell.material.color.setHSL(hue, 0.7, 0.5);
+        }
+      }
+    });
+    
+    // Create patterns that cover the entire grid to test all cell indices
     const fakeCells = [];
     
     // Create a cross pattern in the center
     const centerX = Math.floor(size / 2);
     const centerY = Math.floor(height / 2);
     
+    // Cross pattern
     fakeCells.push(
       { column: centerX, row: centerY, state: 'active', velocity: 100 },
       { column: centerX - 1, row: centerY, state: 'active', velocity: 100 },
@@ -325,65 +461,199 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
       { column: centerX, row: centerY + 1, state: 'active', velocity: 100 }
     );
     
-    // Add cells in each quadrant to ensure good visualization
-    const quadrantPoints = [
-      [Math.floor(size/4), Math.floor(height/4)],         // Top-left
-      [Math.floor(3*size/4), Math.floor(height/4)],       // Top-right
-      [Math.floor(size/4), Math.floor(3*height/4)],       // Bottom-left
-      [Math.floor(3*size/4), Math.floor(3*height/4)]      // Bottom-right
-    ];
+    // Add cells in each corner - critical for testing boundary conditions
+    fakeCells.push(
+      { column: 0, row: 0, state: 'active', velocity: 100 },
+      { column: size-1, row: 0, state: 'active', velocity: 100 },
+      { column: 0, row: height-1, state: 'active', velocity: 100 },
+      { column: size-1, row: height-1, state: 'active', velocity: 100 }
+    );
     
-    // Add a few cells in each quadrant
-    quadrantPoints.forEach(([qx, qy]) => {
-      fakeCells.push(
-        { column: qx, row: qy, state: 'birth', velocity: 127 },
-        { column: qx + 1, row: qy, state: 'birth', velocity: 120 },
-        { column: qx, row: qy + 1, state: 'birth', velocity: 110 }
-      );
-    });
+    // Add diagonal pattern - creates visually distinct pattern and tests many cells
+    for (let i = 0; i < Math.max(size, height); i += 2) {
+      if (i < size && i < height) {
+        fakeCells.push({ column: i, row: i, state: 'birth', velocity: 127 });
+      }
+      if (i < size && (height-1-i) >= 0) {
+        fakeCells.push({ column: i, row: height-1-i, state: 'harmony', velocity: 100 });
+      }
+    }
+    
+    // Create a pattern to specifically test cell at index 255
+    // In a 16x16 grid, this would be at [15, 15] - bottom right corner
+    const x255 = 255 % size;
+    const y255 = Math.floor(255 / size);
+    
+    if (x255 < size && y255 < height) {
+      // Cell at index 255 - make it obvious
+      fakeCells.push({ column: x255, row: y255, state: 'active', velocity: 127 });
+      console.log(`[CellularVisualizer] Adding test cell at index 255: coords [${x255},${y255}]`);
+      
+      // And cells around it to verify neighbors
+      if (x255 > 0) fakeCells.push({ column: x255-1, row: y255, state: 'birth', velocity: 127 });
+      if (y255 > 0) fakeCells.push({ column: x255, row: y255-1, state: 'birth', velocity: 127 });
+      if (x255 < size-1) fakeCells.push({ column: x255+1, row: y255, state: 'birth', velocity: 127 });
+      if (y255 < height-1) fakeCells.push({ column: x255, row: y255+1, state: 'birth', velocity: 127 });
+    }
+    
+    // Add cells in a grid pattern to test many indices
+    for (let x = 0; x < size; x += 4) {
+      for (let y = 0; y < height; y += 4) {
+        fakeCells.push({ column: x, row: y, state: 'active', velocity: 100 });
+        
+        // Calculate the index for this cell to verify correct mapping
+        const cellIndex = y * size + x;
+        if (cellIndex % 50 === 0) {
+          console.log(`[CellularVisualizer] Test cell at [${x},${y}] has index ${cellIndex}`);
+        }
+      }
+    }
+    
+    console.log(`[CellularVisualizer] Created ${fakeCells.length} simulated cells pattern`);
+    
+    // Track cell visibility before updates
+    const cellVisibilityBefore = {
+      total: cellsRef.current.length,
+      defined: cellsRef.current.filter(c => c !== null).length,
+      visible: cellsRef.current.filter(c => c && c.visible).length,
+      active: cellsRef.current.filter(c => c && c.userData && c.userData.active).length
+    };
+    
+    // Track cells that will be updated
+    let cellsFound = 0;
+    let cellsMissing = 0;
+    let cellsUpdated = 0;
     
     // Update cell visualization for each fake cell
     fakeCells.forEach(fakeCell => {
-      const cellIndex = cells.findIndex(c => 
+      // CRITICAL FIX: Calculate the cell index directly instead of using findIndex
+      // This ensures we're using the same indexing logic as the data array
+      let cellIndex;
+      
+      if (is2D) {
+        // 2D mode: cells are stored in row-major order [0,0], [1,0], [2,0], ..., [0,1], [1,1], ...
+        cellIndex = fakeCell.row * size + fakeCell.column;
+      } else {
+        // 1D mode: cells are stored differently
+        cellIndex = fakeCell.row * size + fakeCell.column;
+      }
+      
+      // Log the calculated index for specific cells for debugging
+      if (fakeCell.column === x255 && fakeCell.row === y255) {
+        console.log(`[CellularVisualizer] Cell 255 maps to calculated index ${cellIndex}, coords: [${fakeCell.column},${fakeCell.row}]`);
+      }
+      
+      // Verify that the calculated index matches the correct cell in the array
+      const cellByIndex = cells[cellIndex];
+      const cellBySearch = cells.find(c => 
         c.coords[0] === fakeCell.column && c.coords[1] === fakeCell.row
       );
       
-      if (cellIndex !== -1 && cellsRef.current[cellIndex]) {
+      // Log any discrepancies for specific test cells
+      if ((fakeCell.column === 0 && fakeCell.row === 0) || 
+          (fakeCell.column === x255 && fakeCell.row === y255) ||
+          (cellIndex % 50 === 0)) {
+        console.log(`[CellularVisualizer] Index validation for [${fakeCell.column},${fakeCell.row}]:`,
+          `calculated index: ${cellIndex}`,
+          `coords from index: ${cellByIndex ? JSON.stringify(cellByIndex.coords) : 'NULL'}`,
+          `index from search: ${cellBySearch ? cells.indexOf(cellBySearch) : 'NOT FOUND'}`
+        );
+      }
+      
+      // Use the calculated index to update the cell
+      if (cellIndex >= 0 && cellIndex < cells.length) {
+        cellsFound++;
+        
+        // Get the mesh from the calculated index
         const mesh = cellsRef.current[cellIndex];
         
-        // Make the cell visible
-        if (mesh.material) {
-          mesh.userData.state = fakeCell.state;
-          mesh.userData.velocity = fakeCell.velocity;
+        if (mesh) {
+          // Make the cell visible
+          if (mesh.material) {
+            // Store previous state for logging
+            const wasVisible = mesh.visible;
+            const wasActive = mesh.userData && mesh.userData.active;
+            const oldHeight = mesh.scale ? mesh.scale.y : 0;
+            
+            // CRITICAL FIX: Always ensure cell is visible with good height
+            mesh.userData.state = fakeCell.state;
+            mesh.userData.velocity = fakeCell.velocity;
+            mesh.visible = true;
+            
+            // Set color based on state
+            const stateColor = colors[fakeCell.state] || colors.active;
+            mesh.material.color.copy(stateColor);
+            
+            // Set height
+            mesh.scale.y = 0.3;
+            mesh.position.y = 0.15;
+            
+            // Add to notesRef for tracking with pitch information
+            const pitchOffset = (fakeCell.column % 12) + ((fakeCell.row % 5) * 12);
+            notesRef.current.push({
+              ...fakeCell,
+              pitch: 48 + pitchOffset, // Add a base pitch for mapping
+              birthTime: Date.now()
+            });
+            
+            // Track changes for logging
+            cellsUpdated++;
+            
+            // Detailed logging for specific cells to verify fixes
+            if (cellIndex === 0 || cellIndex === 1 || cellIndex === 255 || cellIndex % 50 === 0 || !wasVisible) {
+              console.log(`[CellularVisualizer] Updated cell[${cellIndex}]: ` +
+                `coords:[${fakeCell.column},${fakeCell.row}], ` +
+                `visibility:${wasVisible}→true, ` +
+                `active:${wasActive}→true, ` +
+                `height:${oldHeight.toFixed(2)}→0.30, ` +
+                `state:'${fakeCell.state}'`);
+            }
+          }
+        } else {
+          // Cell was found in data array but mesh reference is null
+          cellsMissing++;
           
-          // Set color based on state
-          const stateColor = colors[fakeCell.state] || colors.active;
-          mesh.material.color.copy(stateColor);
-          
-          // Set height for visibility
-          mesh.scale.y = 0.3;
-          mesh.position.y = 0.15;
-          
-          // Add to notesRef for tracking with pitch information
-          const pitchOffset = (fakeCell.column % 12) + ((fakeCell.row % 5) * 12);
-          notesRef.current.push({
-            ...fakeCell,
-            pitch: 48 + pitchOffset, // Add a base pitch for mapping
-            birthTime: Date.now()
-          });
+          // Create a new mesh for this cell if it's missing
+          if (cellIndex === 255 || cellIndex % 50 === 0 || cellsMissing < 5) {
+            console.log(`[CellularVisualizer] Missing mesh reference for cell[${cellIndex}] at [${fakeCell.column},${fakeCell.row}]`);
+          }
+        }
+      } else {
+        // Index out of bounds
+        cellsMissing++;
+        if (cellsMissing < 10) {
+          console.log(`[CellularVisualizer] Invalid index ${cellIndex} for coords [${fakeCell.column},${fakeCell.row}], array size: ${cells.length}`);
         }
       }
     });
-  }, [is2D, currentAlgorithm, size, height, cells, colors]);
+    
+    // Track cell visibility after updates
+    const cellVisibilityAfter = {
+      visible: cellsRef.current.filter(c => c && c.visible).length,
+      active: cellsRef.current.filter(c => c && c.userData && c.userData.active).length
+    };
+    
+    console.log(`[CellularVisualizer] Simulation pattern update complete: ` +
+      `found:${cellsFound}/${fakeCells.length}, ` +
+      `missing:${cellsMissing}, ` +
+      `updated:${cellsUpdated}, ` +
+      `active:${cellVisibilityBefore.active}→${cellVisibilityAfter.active}, ` +
+      `visible:${cellVisibilityBefore.visible}→${cellVisibilityAfter.visible}`);
+    
+  }, [is2D, currentAlgorithm, size, height, cells, colors, perfLevel]);
 
   // Simple effect to initialize cells
   useEffect(() => {
+    console.log(`[CellularVisualizer] Initialization effect running, algorithm: ${currentAlgorithm}, perfLevel: ${perfLevel}`);
+    
     // Only run in cellular mode
     if (currentAlgorithm === 'cellular') {
+      console.log(`[CellularVisualizer] Setting up initial pattern for cellular mode (immediate initialization)`);
+      
       // Add a simpler pattern to ensure visualization
       const fakeCells = [];
       
-      // Add a cross pattern in the center
+      // Add a cross pattern in the center plus corners
       const centerX = Math.floor(size / 2);
       const centerY = Math.floor(height / 2);
       
@@ -392,22 +662,82 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
         { column: centerX - 1, row: centerY, state: 'active', velocity: 100 },
         { column: centerX + 1, row: centerY, state: 'active', velocity: 100 },
         { column: centerX, row: centerY - 1, state: 'active', velocity: 100 },
-        { column: centerX, row: centerY + 1, state: 'active', velocity: 100 }
+        { column: centerX, row: centerY + 1, state: 'active', velocity: 100 },
+        // Add corners
+        { column: 0, row: 0, state: 'active', velocity: 100 },
+        { column: size-1, row: 0, state: 'active', velocity: 100 },
+        { column: 0, row: height-1, state: 'active', velocity: 100 },
+        { column: size-1, row: height-1, state: 'active', velocity: 100 }
       );
+      
+      console.log(`[CellularVisualizer] Created ${fakeCells.length} immediate cells for initial visibility`);
+      
+      // Get cell visibility before setting initial pattern
+      const initialVisibility = {
+        total: cellsRef.current.length,
+        defined: cellsRef.current.filter(c => c !== null).length,
+        visible: cellsRef.current.filter(c => c && c.visible).length
+      };
+      
+      console.log(`[CellularVisualizer] Before initial pattern: ${initialVisibility.defined}/${initialVisibility.total} cells defined, ${initialVisibility.visible}/${initialVisibility.total} visible`);
+      
+      // Track successful updates
+      let cellsUpdated = 0;
+      let cellsMissing = 0;
+      
+      // CRITICAL FIX: Make ALL cells visible initially to address visibility issues
+      console.log('[CellularVisualizer] Force initializing all cell visibility');
+      cellsRef.current.forEach((cell, index) => {
+        if (cell) {
+          cell.visible = true;
+          cell.scale.y = 0.3;  // Ensure proper height
+          cell.position.y = 0.15;  // Position correctly above grid
+          
+          // Set a basic color so cells are visible during debugging
+          if (cell.material) {
+            const [x, y] = cells[index]?.coords || [0, 0];
+            // Alternate colors based on position
+            const color = (x + y) % 2 === 0 ? new THREE.Color(0x3366ff) : new THREE.Color(0x66aaff);
+            cell.material.color.copy(color);
+          }
+          
+          // Log some representative cells
+          if (index === 0 || index === 255 || index % 100 === 0) {
+            console.log(`[CellularVisualizer] Force initialized cell[${index}]`);
+          }
+        }
+      });
       
       // Update cell visualization for each fake cell
       fakeCells.forEach(fakeCell => {
-        const cellIndex = cells.findIndex(c => 
-          c.coords[0] === fakeCell.column && c.coords[1] === fakeCell.row
-        );
+        // Calculate the cell index directly for consistent indexing
+        let cellIndex;
         
-        if (cellIndex !== -1 && cellsRef.current[cellIndex]) {
+        if (is2D) {
+          // 2D mode: cells are stored in row-major order
+          cellIndex = fakeCell.row * size + fakeCell.column;
+        } else {
+          // 1D mode uses the same index calculation in this case
+          cellIndex = fakeCell.row * size + fakeCell.column;
+        }
+        
+        // Log for specific cell indices to track the mapping
+        if (fakeCell.column === 0 && fakeCell.row === 0 || cellIndex === 255) {
+          console.log(`[CellularVisualizer] Initial pattern: Cell at [${fakeCell.column},${fakeCell.row}] maps to index ${cellIndex}`);
+        }
+        
+        if (cellIndex >= 0 && cellIndex < cells.length && cellsRef.current[cellIndex]) {
           const mesh = cellsRef.current[cellIndex];
           
           // Make the cell visible
-          if (mesh.material) {
+          if (mesh && mesh.material) {
+            // Track initial state for logging
+            const wasVisible = mesh.visible;
+            
+            // Update properties
             mesh.userData.state = fakeCell.state;
             mesh.userData.velocity = fakeCell.velocity;
+            mesh.visible = true;
             
             // Set color based on state
             const stateColor = colors[fakeCell.state] || colors.active;
@@ -422,35 +752,85 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
               ...fakeCell,
               birthTime: Date.now()
             });
+            
+            cellsUpdated++;
+            
+            // Log changes for specific cells
+            if (cellIndex < 3 || cellIndex === 255 || !wasVisible) {
+              console.log(`[CellularVisualizer] Immediate init: cell[${cellIndex}] at [${fakeCell.column},${fakeCell.row}] visibility:${wasVisible}→true`);
+            }
+          } else {
+            cellsMissing++;
+          }
+        } else {
+          cellsMissing++;
+          if (cellsMissing < 5) {
+            console.log(`[CellularVisualizer] Unable to initialize cell at [${fakeCell.column},${fakeCell.row}], index:${cellIndex}, valid:${cellIndex >= 0 && cellIndex < cells.length}`);
           }
         }
       });
       
+      // Check visibility after updates
+      const afterVisibility = {
+        visible: cellsRef.current.filter(c => c && c.visible).length,
+        active: cellsRef.current.filter(c => c && c.userData && c.userData.active).length
+      };
+      
+      console.log(`[CellularVisualizer] After initial pattern: ${cellsUpdated} cells updated, ${afterVisibility.visible} visible, ${afterVisibility.active} active, ${cellsMissing} missing`);
+      
       // Create simpler periodic updates
-      const timer = setTimeout(addSimulatedCells, 1000);
-      const interval = setInterval(addSimulatedCells, 3000);
+      console.log(`[CellularVisualizer] Setting up timed pattern updates: initial at 1000ms, then every 3000ms`);
+      const timer = setTimeout(() => {
+        console.log(`[CellularVisualizer] Running first delayed pattern update (1000ms)`);
+        addSimulatedCells();
+      }, 1000);
+      
+      const interval = setInterval(() => {
+        console.log(`[CellularVisualizer] Running periodic pattern update (3000ms interval)`);
+        addSimulatedCells();
+      }, 3000);
       
       return () => {
+        console.log(`[CellularVisualizer] Cleaning up pattern timers`);
         clearTimeout(timer);
         clearInterval(interval);
       };
+    } else {
+      console.log(`[CellularVisualizer] Skipping pattern initialization for non-cellular algorithm: ${currentAlgorithm}`);
     }
-  }, [currentAlgorithm, size, height, cells, colors, addSimulatedCells]);
-  
-  // Update particles function - moved from duplicate location
+  }, [currentAlgorithm, size, height, cells, colors, addSimulatedCells, perfLevel]);
   
   // Handle active notes to update cell states with better state tracking and age tracking
   useEffect(() => {
+    console.log(`[CellularVisualizer] Processing activeNotes update: ${activeNotes?.length || 0} notes received`);
+    
     // Store the previous note state for transitions
+    const previousNotesCount = notesRef.current.length;
     notesRef.current = [];
     
-    if (!activeNotes || !cellsRef.current) return;
+    if (!activeNotes || !cellsRef.current) {
+      console.log(`[CellularVisualizer] Skipping note processing: activeNotes=${Boolean(activeNotes)}, cellsRef=${Boolean(cellsRef.current)}`);
+      return;
+    }
     
     // Record current timestamp for age tracking
     const currentTime = Date.now();
     
     // Track previously active cells to detect cells that died
     const activeCellsMap = new Map();
+    
+    // Track note types for logging
+    const noteTypes = {
+      birth: 0,
+      active: 0,
+      harmony: 0,
+      death: 0,
+      other: 0
+    };
+    
+    // Log stats about the incoming notes
+    const groupCount = notesByPosition.size;
+    console.log(`[CellularVisualizer] Processing ${activeNotes.length} notes in ${groupCount} positions`);
     
     // Update notes from active notes and update cell states
     notesByPosition.forEach((notes, key) => {
@@ -463,6 +843,13 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
       let highestPriorityNote = notes[0];
       
       for (const note of notes) {
+        // Track note types
+        if (note.state === 'birth') noteTypes.birth++;
+        else if (note.state === 'harmony') noteTypes.harmony++;
+        else if (note.state === 'death') noteTypes.death++;
+        else if (note.state === 'active') noteTypes.active++;
+        else noteTypes.other++;
+        
         // Birth events take priority for visualization
         if (note.state === 'birth') {
           highestPriorityNote = note;
@@ -502,21 +889,11 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
             if (cellMesh && cellMesh.userData) {
               cellMesh.userData.birthTimestamp = currentTime;
             }
-          }
-          
-          // Create particle effects for birth events
-          if (highestPriorityNote.state === 'birth' && gridRef.current && cellMesh) {
-            const worldPos = new THREE.Vector3();
-            cellMesh.getWorldPosition(worldPos);
             
-            // Create particles at this location with color based on cell importance
-            createParticleBurst(
-              worldPos.x, 
-              worldPos.y, 
-              worldPos.z, 
-              colors.birth.getHex(), 
-              'birth'
-            );
+            // Log first activation of cells (sample a few for logging)
+            if (Math.random() < 0.05) {
+              console.log(`[CellularVisualizer] New cell birth at [${column},${row}], index: ${cellIndex}, state: ${highestPriorityNote.state}`);
+            }
           }
         }
         
@@ -541,14 +918,27 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
           // Simple detection of period-2 oscillator (blinker)
           if (JSON.stringify(cellData.ageHistory) === JSON.stringify([0, 1, 0]) ||
               JSON.stringify(cellData.ageHistory) === JSON.stringify([1, 0, 1])) {
+            
+            if (!cellData.isOscillator) {
+              console.log(`[CellularVisualizer] Detected oscillator at [${column},${row}], period: 2`);
+            }
+            
             cellData.isOscillator = true;
             cellData.oscillatorPeriod = 2;
           }
           
           // Other pattern detection could be added here
         }
+      } else {
+        // Couldn't find matching cell
+        if (Math.random() < 0.05) { // Only log occasionally to avoid spam
+          console.log(`[CellularVisualizer] No matching cell found for note at position [${column},${row}]`);
+        }
       }
     });
+    
+    // Count cells that died in this update
+    let cellsDied = 0;
     
     // Check for cells that died (were active previously but not now)
     cells.forEach((cellData, index) => {
@@ -560,22 +950,17 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
       
       // If cell was previously active but not in current active list
       if (cellData.generationsAlive > 0 && !activeCellsMap.has(cellKey)) {
-        // Cell just died - create death particles
+        // Cell just died
         if (cellData.lastActiveTimestamp > 0 && 
             currentTime - cellData.lastActiveTimestamp < 1000 &&
             gridRef.current) {
           
-          // Create death particles
-          const worldPos = new THREE.Vector3();
-          cellMesh.getWorldPosition(worldPos);
+          cellsDied++;
           
-          createParticleBurst(
-            worldPos.x, 
-            worldPos.y, 
-            worldPos.z, 
-            colors.death.getHex(), 
-            'death'
-          );
+          // Log occasionally to avoid spam
+          if (Math.random() < 0.05) {
+            console.log(`[CellularVisualizer] Cell death at [${x},${y}], generations: ${cellData.generationsAlive}`);
+          }
           
           // Reset age history for pattern detection
           if (cellData.ageHistory && Array.isArray(cellData.ageHistory)) {
@@ -585,70 +970,13 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
         }
       }
     });
-  }, [activeNotes, cells, is2D, colors.birth, colors.death, perfLevel, createParticleBurst]);
-  
-  // Basic particle update function
-  const updateParticles = useCallback((delta) => {
-    if (!particleSystem || particles.length === 0) return;
     
-    // Update particle positions and lifetimes
-    setParticles(prevParticles => {
-      // Limit max number of particles
-      const maxParticles = 100;
-      let particlesToProcess = prevParticles.slice(-maxParticles);
+    // Log summary of this update
+    console.log(`[CellularVisualizer] Notes processed: ${previousNotesCount}→${notesRef.current.length}, ` +
+      `types: birth:${noteTypes.birth}, active:${noteTypes.active}, harmony:${noteTypes.harmony}, ` + 
+      `death:${noteTypes.death}, other:${noteTypes.other}, cellsDied:${cellsDied}`);
       
-      // Update each particle
-      const updatedParticles = particlesToProcess
-        .map(particle => {
-          // Apply velocity and gravity
-          return {
-            ...particle,
-            position: [
-              particle.position[0] + particle.velocity[0],
-              particle.position[1] + particle.velocity[1] - 0.005, // Gravity
-              particle.position[2] + particle.velocity[2]
-            ],
-            // Apply decay
-            life: particle.life * 0.95
-          };
-        })
-        .filter(particle => particle.life > 0.01); // Remove dead particles
-        
-      // Update particle system position and color arrays
-      if (updatedParticles.length > 0 && particleSystem) {
-        const positions = particleSystem.positions;
-        const colors = particleSystem.colors;
-        
-        // Reset all particles to be invisible
-        for (let i = 0; i < particleSystem.count; i++) {
-          const i3 = i * 3;
-          positions[i3] = 0;
-          positions[i3 + 1] = -1000; // Move unused particles far away
-          positions[i3 + 2] = 0;
-        }
-        
-        // Update only the active particles
-        updatedParticles.forEach((particle, i) => {
-          if (i >= particleSystem.count) return;
-          
-          const i3 = i * 3;
-          positions[i3] = particle.position[0];
-          positions[i3 + 1] = particle.position[1];
-          positions[i3 + 2] = particle.position[2];
-          
-          const r = particle.color ? particle.color.r : 1;
-          const g = particle.color ? particle.color.g : 1;
-          const b = particle.color ? particle.color.b : 1;
-          
-          colors[i3] = r * particle.life;
-          colors[i3 + 1] = g * particle.life;
-          colors[i3 + 2] = b * particle.life;
-        });
-      }
-      
-      return updatedParticles;
-    });
-  }, [particles, particleSystem]);
+  }, [activeNotes, cells, is2D, colors.birth, colors.death, perfLevel, notesByPosition]);
   
   // Enhanced animation loop with optional high-quality effects
   useFrame((state, delta) => {
@@ -659,6 +987,28 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
     // Use parent time data or fall back to local
     const time = parentTiming.time || state.clock.elapsedTime;
     const adjustedDelta = parentTiming.delta || delta;
+    
+    // Log animation frame details periodically (only every 3 seconds to avoid console spam)
+    if (Math.floor(time) % 3 === 0 && Math.floor(time * 10) % 10 === 0) {
+      const frameStats = {
+        time: time.toFixed(2),
+        delta: delta.toFixed(4),
+        perfLevel,
+        activeNotes: notesRef.current.length,
+        definedCells: cellsRef.current.filter(c => c !== null).length,
+        visibleCells: cellsRef.current.filter(c => c && c.visible).length,
+        totalCells: cells.length
+      };
+      
+      console.log(`[CellularVisualizer] Animation frame stats: `, 
+        `time:${frameStats.time}, `,
+        `delta:${frameStats.delta}, `,
+        `perf:${frameStats.perfLevel}, `,
+        `notes:${frameStats.activeNotes}, `,
+        `cells:${frameStats.definedCells}/${frameStats.totalCells} defined, `,
+        `${frameStats.visibleCells}/${frameStats.totalCells} visible`
+      );
+    }
     
     // Update text display
     if (textRef.current) {
@@ -685,51 +1035,134 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
     
     // Update grid with animation for high quality mode
     if (gridRef.current) {
-      // Set proper grid rotation
-      gridRef.current.rotation.x = Math.PI / 2;
+      // Grid rotation is already set in JSX, no need to set it here
+      // This prevents startup positioning issues
       
       if (perfLevel === 'high') {
-        // Add breathing effect for high performance mode
+        // IMPORTANT: Since floor and glow planes now have same rotation as the grid,
+        // we can apply gentle wobble and movement effects that look good
+        
         const activeNoteCount = notesRef.current.length;
         const heightFactor = Math.min(1, activeNoteCount / 20);
-        const breathe = Math.sin(time * 0.5) * 0.1 * heightFactor;
-        gridRef.current.position.y = breathe;
         
-        // Small wobble effect in high performance mode
-        gridRef.current.rotation.z = Math.sin(time * 0.2) * 0.05 * (1 + heightFactor * 0.5);
+        // Keep grid at exact 90 degrees for primary rotation
+        gridRef.current.rotation.x = Math.PI / 2;
         
-        // Auto-rotate if enabled
+        // Apply subtle wobble to grid children instead
+        // This makes the grid appear to wobble without changing its primary orientation
+        cellsRef.current.forEach((cell, idx) => {
+          if (cell && idx % 8 === 0) { // Only apply to some cells for performance
+            const wobbleX = Math.sin(time * 0.2 + idx * 0.01) * 0.01 * heightFactor;
+            const wobbleZ = Math.cos(time * 0.3 + idx * 0.01) * 0.01 * heightFactor;
+            cell.rotation.x = wobbleX;
+            cell.rotation.z = wobbleZ;
+          }
+        });
+        
+        // Auto-rotate if enabled - maintain center position
         if (visualizerSettings.autoRotate) {
-          gridRef.current.rotation.y += delta * 0.1;
+          gridRef.current.rotation.z += delta * 0.1;
+        }
+        
+        // Apply coordinated breathing/glow effects to floor and glow planes
+        if (glowRef.current) {
+          // Synchronized breathing effect
+          const breatheAmount = Math.sin(time * 0.5) * 0.05 * heightFactor;
+          
+          // Scale the glow instead of moving it
+          glowRef.current.scale.x = 1 + breatheAmount;
+          glowRef.current.scale.y = 1 + breatheAmount;
+          
+          // IMPORTANT: Don't scale the Z dimension since this would push it through the floor
+          // with our new rotation setup
+          glowRef.current.scale.z = 1;
         }
       }
     }
     
-    // Update particles
-    if (particles.length > 0) {
-      updateParticles(adjustedDelta);
-    }
-    
     // Update glow effect based on performance level
     if (glowRef.current) {
+      const activeNoteCount = notesRef.current.length;
+      
       if (perfLevel === 'high') {
-        const activeNoteCount = notesRef.current.length;
+        // Base glow properties were set in the breathing effect code above
+        // Just update opacity and other effects here
+        
         const maxGlowIntensity = 0.5;
         const glowIntensity = Math.min(1, activeNoteCount / 40) * maxGlowIntensity;
-        glowRef.current.scale.setScalar(1 + glowIntensity);
+        
+        // Scale handled in breathing effect code
         
         if (glowRef.current.material) {
-          glowRef.current.material.opacity = 0.2;
+          // Increase opacity with activity
+          glowRef.current.material.opacity = 0.2 + (glowIntensity * 0.1);
+          
+          // Update glow color based on active notes
+          const hue = 0.6 - (activeNoteCount / 100) * 0.2; // Shift from blue toward purple
+          glowRef.current.material.color.setHSL(hue, 0.7, 0.4);
         }
       } else {
         // Constant glow for medium/low performance
-        glowRef.current.scale.setScalar(1.2);
+        glowRef.current.scale.x = 1.2;
+        glowRef.current.scale.y = 1.2; 
+        glowRef.current.scale.z = 1.0; // Don't scale Z to avoid clipping through floor
         
         if (glowRef.current.material) {
           glowRef.current.material.opacity = 0.15;
         }
       }
+      
+      // CRITICAL FIX: Ensure glow stays at proper position
+      // With rotated planes, we need a small offset in Z to keep it just below the grid
+      glowRef.current.position.set(0, 0, -0.01);
+      
+      // Ensure rotation is maintained (parent/child rotation can sometimes get overridden)
+      glowRef.current.rotation.x = Math.PI/2;
     }
+    
+    // Count active cells before animation
+    const activeCellsBeforeUpdate = cellsRef.current.filter(c => c && c.userData && c.userData.active).length;
+    
+    // Count cells with different index values to debug why only 255 is visible
+    if (Math.floor(time) % 5 === 0 && Math.floor(time * 10) % 10 === 0) {
+      const cellIndexCounts = {};
+      const maxIndex = cells.length - 1;
+      
+      // Check specific index ranges
+      [0, 1, 255, maxIndex].forEach(idx => {
+        const cell = cellsRef.current[idx];
+        console.log(`[CellularVisualizer] DEBUG CELL[${idx}]: `, 
+          cell ? {
+            visible: cell.visible,
+            scale: cell.scale ? cell.scale.toArray().map(v => v.toFixed(2)) : 'undefined',
+            position: cell.position ? cell.position.toArray().map(v => v.toFixed(2)) : 'undefined',
+            active: cell.userData && cell.userData.active,
+            hasMaterial: !!cell.material,
+            coords: cells[idx].coords,
+          } : 'NULL REF'
+        );
+      });
+
+      // Count cells at beginning, middle, and end
+      const sampleRanges = [
+        [0, 10], // First few cells
+        [250, 260], // Around index 255
+        [maxIndex - 10, maxIndex] // Last few cells
+      ];
+      
+      sampleRanges.forEach(([start, end]) => {
+        const visibleCount = cellsRef.current.slice(start, end + 1).filter(c => c && c.visible).length;
+        console.log(`[CellularVisualizer] Cells visible in range [${start}-${end}]: ${visibleCount}/${end-start+1}`);
+      });
+    }
+    
+    // Track cells that change state for logging
+    const changedCells = {
+      activated: 0,
+      deactivated: 0,
+      heightChanged: 0,
+      colorChanged: 0
+    };
     
     // Update cell colors and animations with more visible effects, including age tracking
     cellsRef.current.forEach((cell, index) => {
@@ -740,6 +1173,9 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
       
       // Reset to inactive state but maintain some properties
       const wasActive = cell.userData.active;
+      const oldHeight = cell.scale ? cell.scale.y : 0;
+      const oldColor = cell.material ? cell.material.color.clone() : null;
+      
       cell.userData.active = false;
       
       // Default inactive state with slight glow
@@ -799,6 +1235,11 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
         // Mark cell as active and increment its alive generations counter
         cell.userData.active = true;
         
+        // Track state change for logging
+        if (!wasActive) {
+          changedCells.activated++;
+        }
+        
         // Increment generation counter for cells that remain alive
         if (!cell.userData.generationsAlive) {
           cell.userData.generationsAlive = 0;
@@ -834,6 +1275,11 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
         // Apply height scale
         cell.scale.y = heightScale;
         cell.position.y = heightScale / 2;
+        
+        // Track height changes for logging
+        if (Math.abs(oldHeight - heightScale) > 0.05) {
+          changedCells.heightChanged++;
+        }
         
         // Base color based on state
         let color = colors.active;
@@ -912,6 +1358,9 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
         const shortTransitionTime = Math.max(0.1, Math.min(0.3, noteTransitionTime * 0.5));
         const longTransitionTime = Math.max(0.3, Math.min(1.0, noteTransitionTime * 2));
         
+        // Store original color for logging
+        const originalColor = cell.material.color.clone();
+        
         if (age < shortTransitionTime) {
           // New activations use the age color directly
           cell.material.color.copy(ageColor);
@@ -929,6 +1378,13 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
             // Simpler fade for medium/low performance
             cell.material.color.copy(ageColor).lerp(colors.active, transitionProgress);
           }
+        }
+        
+        // Track color changes for logging
+        if (oldColor && Math.abs(oldColor.r - cell.material.color.r) + 
+                         Math.abs(oldColor.g - cell.material.color.g) + 
+                         Math.abs(oldColor.b - cell.material.color.b) > 0.3) {
+          changedCells.colorChanged++;
         }
         
         // Add glow effect with emission based on state, with stronger emission for older cells
@@ -957,41 +1413,118 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
             trailsRef.current[index].material.color = trailColor;
           }
         }
-      } else {
+      } else if (wasActive) {
+        // Cell was active but is now inactive
+        changedCells.deactivated++;
+        
         // Not active - hide trails
         if (trailsRef.current[index]) {
           trailsRef.current[index].visible = false;
         }
       }
     });
+    
+    // Log changes at regular intervals (only log if there are actual changes)
+    if ((Math.floor(time) % 2 === 0 && Math.floor(time * 10) % 10 === 0) &&
+        (changedCells.activated > 0 || changedCells.deactivated > 0)) {
+      
+      // Count active cells after update
+      const activeCellsAfterUpdate = cellsRef.current.filter(c => c && c.userData && c.userData.active).length;
+      
+      console.log(`[CellularVisualizer] Cell updates at t=${time.toFixed(1)}: ` +
+        `activated:${changedCells.activated}, ` +
+        `deactivated:${changedCells.deactivated}, ` +
+        `heightChanged:${changedCells.heightChanged}, ` +
+        `colorChanged:${changedCells.colorChanged}, ` +
+        `activeCells:${activeCellsBeforeUpdate}→${activeCellsAfterUpdate}`
+      );
+    }
   });
   
   return (
     <group>
-      {/* Title */}
-      <Text
-        ref={textRef}
-        position={[0, 5, 0]}
-        fontSize={0.7}
-        color="white"
-        anchorX="center"
-        anchorY="middle"
-      >
-        Cellular Automaton
-      </Text>
+      {/* Text label on a separate level from the grid with Billboard to ensure it always faces camera */}
+      <group position={[0, 5, 0]}>
+        <Billboard follow={true} lockX={false} lockY={false} lockZ={false}>
+          <Text
+            ref={textRef}
+            position={[0, 0, 0]}
+            fontSize={0.7}
+            color="white"
+            anchorX="center"
+            anchorY="middle"
+          >
+            Cellular Automaton
+          </Text>
+        </Billboard>
+      </group>
+      
+      {/* Hover tooltip that follows the camera and displays object info */}
+      {hoveredInfo && (
+        <Billboard 
+          follow={true} 
+          position={[0, 3, 0]}
+        >
+          <group>
+            {/* Semi-transparent background panel */}
+            <mesh position={[0, 0, -0.01]}>
+              <planeGeometry args={[3.5, 1.5]} />
+              <meshBasicMaterial color="#000000" transparent opacity={0.7} />
+            </mesh>
+            
+            {/* Tooltip text content */}
+            <Text
+              position={[0, 0.5, 0]}
+              fontSize={0.2}
+              color="#ffffff"
+              anchorX="center"
+              anchorY="top"
+              maxWidth={3}
+            >
+              {hoveredInfo.type}
+            </Text>
+            
+            {/* Display object properties */}
+            <Text
+              position={[0, 0, 0]}
+              fontSize={0.15}
+              color="#aaffff"
+              anchorX="center"
+              anchorY="middle"
+              maxWidth={3}
+            >
+              {Object.entries(hoveredInfo)
+                .filter(([key]) => key !== 'type')
+                .map(([key, value]) => `${key}: ${value}`)
+                .join('\n')}
+            </Text>
+          </group>
+        </Billboard>
+      )}
       
       {/* Basic environmental lighting for better compatibility */}
       <ambientLight intensity={0.6} /> 
       <pointLight position={[0, 5, 0]} intensity={0.7} color="#6688ff" />
       <pointLight position={[5, 3, 5]} intensity={0.5} color="#88aaff" />
       
-      {/* Grid - rotate to be more visible from top view */}
-      <group ref={gridRef} rotation={[0, 0, 0]}>
-        {/* Enhanced glow effect under the grid */}
+      {/* Grid - always rotated to be visible from top view */}
+      <group ref={gridRef} rotation={[Math.PI / 2, 0, 0]}>
+        {/* Enhanced glow effect - positioned at the center of the grid */}
+        {/* CRITICAL FIX: Use same 90-degree rotation as the parent grid */}
         <mesh 
           ref={glowRef}
-          position={[0, -0.2, 0]} 
-          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, 0, 0]} /* Center position - no offset to ensure it's in the middle of the grid */
+          rotation={[Math.PI/2, 0, 0]} /* Match parent grid's 90-degree rotation */
+          onPointerEnter={(e) => {
+            e.stopPropagation();
+            setHoveredInfo({
+              type: 'Glow Effect',
+              object: e.object.type || 'Mesh',
+              material: e.object.material.type || 'MeshBasicMaterial',
+              size: `${(size * spacing * 2).toFixed(1)} x ${(size * spacing * 2).toFixed(1)}`
+            });
+          }}
+          onPointerLeave={() => setHoveredInfo(null)}
         >
           <planeGeometry args={[size * spacing * 2, size * spacing * 2]} />
           <meshBasicMaterial 
@@ -1002,10 +1535,21 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
           />
         </mesh>
         
-        {/* Floor plane for grid - always visible for better clarity with animation */}
+        {/* Floor plane for grid - positioned directly at the center of the grid */}
+        {/* CRITICAL FIX: Use same 90-degree rotation as the parent grid */}
         <mesh 
-          position={[0, -0.05, 0]} 
-          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, 0, -0.005]} /* Center position with tiny Z offset to prevent z-fighting with glow */
+          rotation={[Math.PI/2, 0, 0]} /* Match parent grid's 90-degree rotation */
+          onPointerEnter={(e) => {
+            e.stopPropagation();
+            setHoveredInfo({
+              type: 'Floor Plane',
+              object: e.object.type || 'Mesh',
+              material: e.object.material.type || 'MeshBasicMaterial',
+              size: `${(size * spacing * 1.5).toFixed(1)} x ${(size * spacing * 1.5).toFixed(1)}`
+            });
+          }}
+          onPointerLeave={() => setHoveredInfo(null)}
         >
           <planeGeometry args={[size * spacing * 1.5, size * spacing * 1.5]} />
           <meshBasicMaterial 
@@ -1021,32 +1565,178 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
             {/* Main cell cube */}
             <mesh
               key={`cell-${index}`}
-              ref={el => cellsRef.current[index] = el}
+              ref={el => {
+                // Enhanced ref callback to debug ref connection issues
+                if (el) {
+                  // Store the mesh reference
+                  cellsRef.current[index] = el;
+                  
+                  // Add debug info to the mesh
+                  el.userData = {
+                    ...el.userData,
+                    perfLevel,
+                    cellIndex: index,
+                    coords: cell.coords,
+                    active: false,
+                    generationsAlive: cell.generationsAlive || 0,
+                    birthTimestamp: cell.birthTimestamp || 0,
+                    lastActiveTimestamp: cell.lastActiveTimestamp || 0,
+                    refConnectedAt: Date.now()
+                  };
+                  
+                  // CRITICAL FIX: Force all cells to be visible initially
+                  el.visible = true;
+                  
+                  // Set initial height so cell is visible
+                  el.scale.y = 0.3;
+                  el.position.y = 0.15;
+                  
+                  // DEBUG: Log specific indices to understand why only 255 is visible
+                  if (index === 0 || index === 1 || index === 255 || index % 100 === 0) {
+                    console.log(`[CellularVisualizer] CELL REF CONNECTED[${index}]: ` +
+                      `coords:${cell.coords}, ` +
+                      `visible:${el.visible}, ` +
+                      `height:${el.scale.y.toFixed(2)}, ` +
+                      `y:${el.position.y.toFixed(2)}, ` +
+                      `mode:${perfLevel}`);
+                  }
+                } else if (index === 0 || index === 1 || index === 255 || index % 100 === 0) {
+                  // Log when refs are NOT connected for specific indices
+                  console.log(`[CellularVisualizer] WARNING: Null ref for cell[${index}]`);
+                }
+              }}
               position={[...cell.position]}
               userData={{ 
                 active: false,
                 generationsAlive: cell.generationsAlive || 0,
                 birthTimestamp: cell.birthTimestamp || 0,
-                lastActiveTimestamp: cell.lastActiveTimestamp || 0
+                lastActiveTimestamp: cell.lastActiveTimestamp || 0,
+                perfLevel,
+                cellIndex: index,
+                coords: cell.coords
               }}
-              onClick={() => setHoveredCell(cell.coords)}
-              onPointerEnter={() => setHoveredCell(cell.coords)}
-              onPointerLeave={() => setHoveredCell(null)}
+              onClick={() => {
+                setHoveredCell(cell.coords);
+                setHoveredInfo({
+                  type: 'Cell',
+                  coords: `[${cell.coords[0]}, ${cell.coords[1]}]`, 
+                  state: cell.state || 'inactive',
+                  index: index
+                });
+              }}
+              onPointerEnter={(e) => {
+                e.stopPropagation();
+                setHoveredCell(cell.coords);
+                setHoveredInfo({
+                  type: 'Cell',
+                  coords: `[${cell.coords[0]}, ${cell.coords[1]}]`,
+                  state: cell.state || 'inactive',
+                  index: index,
+                  object: e.object.type || 'Mesh'
+                });
+              }}
+              onPointerLeave={() => {
+                setHoveredCell(null);
+                setHoveredInfo(null);
+              }}
             >
               <primitive object={cellGeometry} />
               <meshStandardMaterial
+                key={`mat-${index}-${perfLevel}`} // Add key to force material recreation on perf change
                 color={colors.inactive}
                 metalness={0.5}
                 roughness={0.2}
                 emissive={colors.inactive}
                 emissiveIntensity={0.5}
-                transparent={true}
+                transparent
                 opacity={0.9}
+                onUpdate={(self) => {
+                  // Force cell visibility on material creation
+                  if (self && self.parent) {
+                    // Store old values for logging
+                    const wasVisible = self.parent.visible;
+                    const oldScale = self.parent.scale ? {...self.parent.scale} : null;
+                    const oldPosition = self.parent.position ? {...self.parent.position} : null;
+                    
+                    // CRITICAL FIX: Force all cells to be visible with good height
+                    self.parent.visible = true;
+                    
+                    // Use larger minimum height to ensure cells are visible
+                    // The key issue is that cells need enough height to be visible
+                    const minHeight = 0.3; // Increased from previous values
+                    self.parent.scale.y = Math.max(minHeight, self.parent.scale.y || 0);
+                    
+                    // Position based on height - centered above the floor
+                    self.parent.position.y = self.parent.scale.y / 2;
+                    
+                    // Add material update info to parent mesh
+                    self.parent.userData = {
+                      ...self.parent.userData,
+                      materialUpdateCount: (self.parent.userData?.materialUpdateCount || 0) + 1,
+                      lastMaterialUpdate: Date.now(),
+                      perfLevel,
+                      forcedVisible: true // Track that we forced visibility
+                    };
+                    
+                    // Find cell index by position matching
+                    const cellIndex = cells.findIndex(c => 
+                      Math.abs(c.position[0] - self.parent.position.x) < 0.01 && 
+                      Math.abs(c.position[2] - self.parent.position.z) < 0.01
+                    );
+                    
+                    // Make sure the ref is properly connected
+                    if (cellIndex >= 0 && !cellsRef.current[cellIndex] && self.parent) {
+                      console.log(`[CellularVisualizer] Material.onUpdate reconnecting missing ref for cell[${cellIndex}]`);
+                      cellsRef.current[cellIndex] = self.parent;
+                    }
+                    
+                    // Only log if this is a material update that actually changed something
+                    if (!wasVisible || 
+                        (oldScale && oldScale.y < minHeight) || 
+                        (oldPosition && oldPosition.y !== self.parent.position.y)) {
+                      
+                      console.log(`[CellularVisualizer] Material.onUpdate fixed cell[${cellIndex}]: ` +
+                        `perfLevel:${perfLevel}, ` +
+                        `visible:${wasVisible}→true, ` +
+                        `height:${oldScale ? oldScale.y.toFixed(2) : 'undefined'}→${self.parent.scale.y.toFixed(2)}, ` +
+                        `y:${oldPosition ? oldPosition.y.toFixed(2) : 'undefined'}→${self.parent.position.y.toFixed(2)}, ` +
+                        `uid:${self.parent.uuid.slice(-6)}`);
+                    }
+                    
+                    // Set initial color based on position for visual variation
+                    if (cellIndex >= 0) {
+                      const [x, y] = cells[cellIndex].coords;
+                      // Create a unique color based on cell position
+                      const hue = ((x * 3 + y * 7) % 20) / 60;
+                      const color = new THREE.Color().setHSL(hue, 0.3, 0.3);
+                      
+                      // Store old color for logging
+                      const oldColor = self.color.getHexString();
+                      
+                      // Apply new color
+                      self.color.copy(color);
+                      self.emissive.copy(color).multiplyScalar(0.3);
+                      
+                      // Add debugging info to the material
+                      self.userData = {
+                        ...self.userData,
+                        cellIndex,
+                        coords: [x, y],
+                        perfLevel,
+                        updatedAt: Date.now()
+                      };
+                      
+                      // Log color change (only for representative cells to avoid spam)
+                      if (cellIndex < 5 || cellIndex % 50 === 0) {
+                        console.log(`[CellularVisualizer] Material.onUpdate set color for cell[${cellIndex}]: ` +
+                          `perfMode:${perfLevel}, ` +
+                          `#${oldColor}→#${self.color.getHexString()}, coords:[${x},${y}]`);
+                      }
+                    }
+                  }
+                }}
               />
-              
-              {/* Note labels removed */}
             </mesh>
-            
             {/* Add trails for birth/active cells in high performance mode */}
             {perfLevel === 'high' && (
               <Trail
@@ -1064,6 +1754,17 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
                     cell.position[2]
                   ]}
                   scale={0.1}
+                  onPointerEnter={(e) => {
+                    e.stopPropagation();
+                    setHoveredInfo({
+                      type: 'Trail Particle',
+                      coords: `[${cell.coords[0]}, ${cell.coords[1]}]`,
+                      cellIndex: index,
+                      object: e.object.type || 'Mesh',
+                      geometry: 'SphereGeometry'
+                    });
+                  }}
+                  onPointerLeave={() => setHoveredInfo(null)}
                 >
                   <sphereGeometry args={[1, 4, 4]} />
                   <meshBasicMaterial color={colors.birth.getHex()} transparent opacity={0.6} />
@@ -1072,42 +1773,6 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
             )}
           </group>
         ))}
-        
-        {/* Simple standard particle system */}
-        {particleSystem && (
-          <points>
-            <bufferGeometry>
-              <bufferAttribute
-                attach="attributes-position"
-                count={particleSystem.count}
-                array={particleSystem.positions}
-                itemSize={3}
-              />
-              <bufferAttribute
-                attach="attributes-color"
-                count={particleSystem.count}
-                array={particleSystem.colors}
-                itemSize={3}
-              />
-            </bufferGeometry>
-            <pointsMaterial
-              size={0.2}
-              vertexColors
-              transparent
-              opacity={0.6}
-              blending={THREE.AdditiveBlending}
-              depthWrite={false}
-              sizeAttenuation
-            />
-          </points>
-        )}
-        
-        {/* Grid lines */}
-        {/* <gridHelper 
-          args={[size * spacing * 1.02, size, colors.grid.getHex(), colors.grid.getHex()]} 
-          position={[0, 0.01, 0]}
-          rotation={[Math.PI / 2, 0, 0]}
-        /> */}
       </group>
     </group>
   );
