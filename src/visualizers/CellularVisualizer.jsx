@@ -1,13 +1,10 @@
 import React, { useRef, useMemo, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { Text, Trail, Billboard } from '@react-three/drei';
+import { Trail } from '@react-three/drei';
 import { useSelector } from 'react-redux';
 
-// Import modular components
-import { HoverTooltip } from './cellular/HoverTooltip';
-import { CellGrid, Cell } from './cellular/CellGrid';
-import { getPitchName, getCellIndex, createTestPattern, calculateGridDimensions } from './cellular/CellularUtils';
+import { getCellIndex, createTestPattern } from './cellular/CellularUtils';
 
 /**
  * Specialized visualizer for cellular automata, particularly Conway's Game of Life
@@ -24,8 +21,7 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
 
   // UI state
   const [hoveredCell, setHoveredCell] = useState(null);
-  const [hoveredInfo, setHoveredInfo] = useState(null);
-  const [showLabels, setShowLabels] = useState(false);
+
 
   // Get cellular data from Redux
   const currentAlgorithm = useSelector(state => state.algorithm?.currentAlgorithm);
@@ -198,8 +194,7 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
     }
   }, [is2D, size, height, spacing]);
 
-  // Force unique key for remounting
-  const [visualizerKey] = useState(() => Math.random().toString(36).substring(7));
+
 
   // Initialize refs and ensure cell visibility
   useEffect(() => {
@@ -756,24 +751,9 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
 
   return (
     <group>
-      {/* Title label */}
-      <group position={[0, 5, 0]}>
-        <Billboard follow={true} lockX={false} lockY={false} lockZ={false}>
-          <Text
-            ref={textRef}
-            position={[0, 0, 0]}
-            fontSize={0.7}
-            color="white"
-            anchorX="center"
-            anchorY="middle"
-          >
-            Cellular Automaton
-          </Text>
-        </Billboard>
-      </group>
 
-      {/* Hover tooltip */}
-      <HoverTooltip info={hoveredInfo} position={[0, 3, 8]} />
+
+
 
       {/* Lighting */}
       <ambientLight intensity={0.6} />
@@ -787,16 +767,7 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
           ref={glowRef}
           position={[0, 0, 0]}
           rotation={[Math.PI / 2, 0, 0]}
-          onPointerEnter={(e) => {
-            e.stopPropagation();
-            setHoveredInfo({
-              type: 'Glow Effect',
-              object: e.object.type || 'Mesh',
-              material: e.object.material.type || 'MeshBasicMaterial',
-              size: `${(size * spacing * 2).toFixed(1)} x ${(size * spacing * 2).toFixed(1)}`
-            });
-          }}
-          onPointerLeave={() => setHoveredInfo(null)}
+
         >
           <planeGeometry args={[size * spacing * 2, size * spacing * 2]} />
           <meshBasicMaterial
@@ -811,16 +782,7 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
         <mesh
           position={[0, 0, -0.005]}
           rotation={[Math.PI / 2, 0, 0]}
-          onPointerEnter={(e) => {
-            e.stopPropagation();
-            setHoveredInfo({
-              type: 'Floor Plane',
-              object: e.object.type || 'Mesh',
-              material: e.object.material.type || 'MeshBasicMaterial',
-              size: `${(size * spacing * 1.5).toFixed(1)} x ${(size * spacing * 1.5).toFixed(1)}`
-            });
-          }}
-          onPointerLeave={() => setHoveredInfo(null)}
+
         >
           <planeGeometry args={[size * spacing * 1.5, size * spacing * 1.5]} />
           <meshBasicMaterial
@@ -868,30 +830,7 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
                 cellIndex: index,
                 coords: cell.coords
               }}
-              onClick={() => {
-                setHoveredCell(cell.coords);
-                setHoveredInfo({
-                  type: 'Cell',
-                  coords: `[${cell.coords[0]}, ${cell.coords[1]}]`,
-                  state: cell.state || 'inactive',
-                  index: index
-                });
-              }}
-              onPointerEnter={(e) => {
-                e.stopPropagation();
-                setHoveredCell(cell.coords);
-                setHoveredInfo({
-                  type: 'Cell',
-                  coords: `[${cell.coords[0]}, ${cell.coords[1]}]`,
-                  state: cell.state || 'inactive',
-                  index: index,
-                  object: e.object.type || 'Mesh'
-                });
-              }}
-              onPointerLeave={() => {
-                setHoveredCell(null);
-                setHoveredInfo(null);
-              }}
+
             >
               <boxGeometry 
                 args={[cellSize, 0.1, cellSize]}
