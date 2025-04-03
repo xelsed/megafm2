@@ -14,6 +14,7 @@ A browser-based 3D music generation tool that interfaces with the MEGAfm hardwar
 - Multiple visualization modes for different algorithms
 - Customizable color schemes and visual parameters
 - Accessibility features for deaf/hard-of-hearing users
+- Modular visualization architecture for extensibility
 
 ### MEGAfm Hardware Integration
 - Comprehensive control of all MEGAfm synthesis parameters
@@ -31,6 +32,19 @@ A browser-based 3D music generation tool that interfaces with the MEGAfm hardwar
 3. Select an algorithm and adjust parameters
 4. Use the visualization controls to customize the visual representation
 5. Explore the MEGAfm tabs to access advanced synthesis features
+
+## Architecture
+
+The application uses:
+- React and Vite for UI
+- Redux for state management
+- Three.js with React Three Fiber for 3D visualization
+- Web MIDI API for MIDI connectivity
+
+The visualizers follow a modular architecture:
+- Main visualizer components (CellularVisualizer, PianoRollVisualizer, etc.)
+- Shared utility components in subdirectories (e.g., /visualizers/cellular/)
+- Performance optimization for different devices
 
 ## MEGAfm Controls
 
@@ -72,12 +86,23 @@ A browser-based 3D music generation tool that interfaces with the MEGAfm hardwar
 - Browse and select from 600 presets across 6 banks
 - Save and recall your own preset creations
 
-## Future Improvements
-- Complete visualizations for all 8 FM algorithms
-- Add real-time operator level visualization
-- Add spectrum analyzer for harmonic content
-- Implement MIDI SysEx for preset backup/restore
-- Enhanced collaboration features
+## Project Structure
+
+```
+/
+├── src/
+│   ├── algorithms/ - Music generation algorithms
+│   ├── components/ - UI components
+│   ├── midi/ - MIDI connection utilities
+│   ├── state/ - Redux state management
+│   └── visualizers/ - Visual representations
+│       └── cellular/ - Cellular visualizer components
+│           ├── CellMaterial.jsx - Cell appearance and transitions
+│           ├── CellGrid.jsx - Grid layout and effects
+│           ├── HoverTooltip.jsx - Interactive tooltips
+│           └── CellularUtils.js - Helper functions
+└── public/ - Static assets
+```
 
 ## Technical Details
 - Built with React, Redux, and Three.js

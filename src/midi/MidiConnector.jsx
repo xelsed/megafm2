@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { WebMidi } from 'webmidi';
 import { useDispatch, useSelector } from 'react-redux';
-import { midiConnected, midiDisconnected, midiError } from '../state/midiSlice';
+import { midiConnected, midiDisconnected, midiError, midiDevicesDetected } from '../state/midiSlice';
 
 // MegaFM uses MIDI port 1 (vs 0) channel 1
 const MEGAFM_CHANNEL = 1;
@@ -25,6 +25,7 @@ const MidiConnector = () => {
     if (WebMidi.enabled) {
       console.log('WebMidi already enabled');
       if (!connectionAttemptedRef.current) {
+        updateAvailableDevices();
         connectToMegaFM();
         connectionAttemptedRef.current = true;
       }
@@ -37,6 +38,8 @@ const MidiConnector = () => {
         console.log('WebMidi enabled!');
         // Capture initial device state
         updateDeviceState();
+        // Update available devices in Redux
+        updateAvailableDevices();
         connectToMegaFM();
         connectionAttemptedRef.current = true;
         
@@ -72,6 +75,22 @@ const MidiConnector = () => {
       }
     };
   }, [dispatch]);
+  
+  // Update available devices in Redux store
+  const updateAvailableDevices = () => {
+    if (!WebMidi.enabled) return;
+    
+    const outputs = WebMidi.outputs.map(output => ({
+      id: output.id,
+      name: output.name,
+      manufacturer: output.manufacturer || 'Unknown',
+      connection: output.connection,
+      state: output.state,
+      instance: output
+    }));
+    
+    dispatch(midiDevicesDetected({ outputs }));
+  };
 
   // Update our tracked device state
   const updateDeviceState = () => {
@@ -216,6 +235,9 @@ const MidiConnector = () => {
       if (hasDeviceListChanged()) {
         console.log('Device list has changed, attempting to reconnect...');
         
+        // Update available devices first
+        updateAvailableDevices();
+        
         // If not connected or connected to a "through" device, try to find a better device
         if (!isConnected || 
             (connectedOutput && connectedOutput.name.toLowerCase().includes('through')) ||
@@ -233,6 +255,9 @@ const MidiConnector = () => {
   const handleDeviceConnection = (e) => {
     console.log(`Device connected event: ${e.port.name}`);
     
+    // Update available devices immediately
+    updateAvailableDevices();
+    
     // Use debounced reconnect for all connection events
     debouncedReconnect();
   };
@@ -240,6 +265,9 @@ const MidiConnector = () => {
   // Handle device disconnection events more intelligently with debounce
   const handleDeviceDisconnection = (e) => {
     console.log(`Device disconnected event: ${e.port.name}`);
+    
+    // Update available devices immediately
+    updateAvailableDevices();
     
     // Check if the disconnected device is our current MIDI device
     if (isConnected && connectedOutput && 
@@ -252,6 +280,52 @@ const MidiConnector = () => {
     
     // Use debounced reconnect
     debouncedReconnect();
+  };
+  
+  // Function to manually select a MIDI output device
+  // This will be called from the dropdown menu
+  window.selectMidiOutput = (outputId) => {
+    if (!WebMidi.enabled) {
+      console.warn('WebMidi not enabled');
+      return;
+    }
+    
+    try {
+      // Find the selected output device
+      const outputDevice = WebMidi.outputs.find(output => output.id === outputId);
+      
+      if (!outputDevice) {
+        console.warn(`No MIDI output device found with ID: ${outputId}`);
+        return;
+      }
+      
+      console.log(`Manually selected output device: ${outputDevice.name}`);
+      
+      // Try to find a matching input for our selected output
+      let inputDevice = WebMidi.inputs.find(input => 
+        input.name === outputDevice.name
+      );
+      
+      // If no matching input, try to find any MIDI input
+      if (!inputDevice && WebMidi.inputs.length > 0) {
+        inputDevice = WebMidi.inputs[0];
+      }
+      
+      if (inputDevice) {
+        console.log(`Selected matching input device: ${inputDevice.name}`);
+      }
+      
+      // Update Redux store with the selected devices
+      dispatch(midiConnected({
+        output: outputDevice,
+        input: inputDevice
+      }));
+      
+      return true;
+    } catch (error) {
+      console.error('Error selecting MIDI output:', error);
+      return false;
+    }
   };
 
   // This component doesn't render anything, it just manages the MIDI connection
