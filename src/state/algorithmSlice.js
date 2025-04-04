@@ -43,6 +43,20 @@ const initialState = {
         preferredPatterns: ['cross', 'glider', 'blinker']  // Preferred patterns for initialization
       }
     },
+    markov: {
+      enabled: false,
+      parameters: {
+        order: 1,                // Markov chain order (context length)
+        length: 16,              // Sequence length
+        baseNote: 60,            // Base note (middle C)
+        scale: 'major',          // Scale to quantize notes to
+        density: 0.8,            // Note density
+        octaveRange: 2,          // Range in octaves
+        patternType: 'melody',   // melody, rhythm, harmony
+        learningPattern: 'ascendDescend', // Pattern to learn from
+        randomness: 0.3          // Amount of randomness to inject
+      }
+    },
     sequential: {
       enabled: false,
       parameters: {
@@ -91,6 +105,9 @@ const initialState = {
   availableScales: [
     'major', 'minor', 'pentatonic', 'blues', 'chromatic',
     'wholetone', 'diminished', 'harmonicminor', 'dorian'
+  ],
+  availableLearningPatterns: [
+    'ascendDescend', 'jazzChords', 'pentatonic', 'fibonacci'
   ]
 };
 
