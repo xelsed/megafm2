@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build locally
 - `npm run test` - Run tests (placeholder, no actual tests yet)
+- `npm run dev -- --host` - Start dev server accessible on local network
 
 ## Code Style Guidelines
 - **Imports**: React/core imports first, Redux imports next, custom modules last
@@ -19,12 +20,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Cleanup**: Always clean up event listeners, timers, and animation frames in useEffect returns
 - **MIDI**: Explicitly stop MIDI notes when components unmount
 - **JSX**: Format with proper indentation, align props when spanning multiple lines
+- **Performance**: Use React.memo for complex components that render frequently
 
 ## Project Structure
 - `/algorithms` - Music generation algorithms
 - `/components` - UI components
-- `/midi` - MIDI connection utilities
-- `/state` - Redux state management
+- `/midi` - MIDI connection utilities 
+- `/state` - Redux state management (slices organized by feature)
 - `/visualizers` - Visual representations
   - `/visualizers/cellular` - Modular components for cellular visualizer
 
@@ -33,6 +35,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Split large components into smaller, focused ones
 - Extract utility functions to separate files
 - Maintain performance optimizations for different device capabilities
+- ThreeJS components should follow react-three/fiber patterns
 
 ## Visualizer Architecture
 - Base visualizer components handle core 3D setup and rendering
