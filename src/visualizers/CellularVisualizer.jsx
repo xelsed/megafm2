@@ -337,14 +337,11 @@ const CellularVisualizer = ({ activeNotes = [], perfLevel = 'medium' }) => {
         addSimulatedCells();
       }, 1000);
 
-      // Periodically update for animation
-      const interval = setInterval(() => {
-        addSimulatedCells();
-      }, 3000);
-
+      // We don't need to periodically update with test patterns
+      // as that interferes with normal simulation behavior
+      
       return () => {
         clearTimeout(timer);
-        clearInterval(interval);
       };
     }
   }, [currentAlgorithm, cells, colors, addSimulatedCells]);
