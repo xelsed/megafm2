@@ -10,6 +10,7 @@ const ParticleFieldVisualizer = React.lazy(() => import('./ParticleFieldVisualiz
 const GeometricVisualizer = React.lazy(() => import('./GeometricVisualizer'));
 const CymaticVisualizer = React.lazy(() => import('./CymaticVisualizer'));
 const CellularVisualizer = React.lazy(() => import('./CellularVisualizer'));
+const FluidVisualizer = React.lazy(() => import('./FluidVisualizer'));
 
 // Main visualizer component that manages all visualization modes
 const Visualizer = () => {
@@ -273,6 +274,7 @@ const Visualizer = () => {
       case 'geometricObjects': return GeometricVisualizer;
       case 'cymatic': return CymaticVisualizer;
       case 'cellular': return CellularVisualizer;
+      case 'fluid': return FluidVisualizer;
       default: return PianoRollVisualizer;
     }
   }, [visualizationMode]);

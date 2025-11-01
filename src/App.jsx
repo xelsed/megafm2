@@ -12,6 +12,44 @@ import AudioManager from './audio/AudioManager';
 // Create XR store
 const xrStore = createXRStore();
 
+// MIDI Device Selector component
+function MidiDeviceSelector() {
+  const availableOutputs = useSelector(state => state.midi.availableOutputs);
+  const currentOutput = useSelector(state => state.midi.output);
+  
+  const handleDeviceChange = (e) => {
+    const selectedDeviceId = e.target.value;
+    if (selectedDeviceId && window.selectMidiOutput) {
+      window.selectMidiOutput(selectedDeviceId);
+    }
+  };
+  
+  if (!availableOutputs || availableOutputs.length === 0) {
+    return null;
+  }
+  
+  return (
+    <select 
+      value={currentOutput?.id || ''}
+      onChange={handleDeviceChange}
+      style={{
+        marginLeft: '10px',
+        background: '#222',
+        color: 'white',
+        border: '1px solid #444',
+        borderRadius: '4px',
+        padding: '2px 4px'
+      }}
+    >
+      {availableOutputs.map(device => (
+        <option key={device.id} value={device.id}>
+          {device.name}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function App() {
   const [showControls, setShowControls] = useState(true);
   const midiConnected = useSelector(state => state.midi.connected);
@@ -83,6 +121,7 @@ function App() {
         <div>
           Audio: {audioMode === 'midi' ? '🎹 MIDI Hardware' : '🔊 Web Audio'} |
           {midiConnected ? ' ✅ Connected' : ' ❌ Disconnected'}
+          <MidiDeviceSelector />
         </div>
         <div>
           Algorithm: {currentAlgorithm} {isPlaying ? '▶️ Playing' : '⏹️ Stopped'}

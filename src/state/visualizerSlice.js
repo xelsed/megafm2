@@ -2,7 +2,7 @@ import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
   visualizationMode: 'pianoRoll',
-  availableModes: ['pianoRoll', 'particleField', 'geometricObjects', 'cymatic', 'cellular'],
+  availableModes: ['pianoRoll', 'particleField', 'geometricObjects', 'cymatic', 'cellular', 'fluid'],
   colorScheme: 'spectrum',
   availableColorSchemes: ['spectrum', 'instrument', 'velocity', 'harmony', 'cellular'],
   cameraPosition: { x: 0, y: 0, z: 10 },
@@ -34,6 +34,9 @@ export const algorithmVisualizationMap = {
   fractal: 'pianoRoll',
   euclidean: 'particleField',
   cellular: 'cellular',
+  markov: 'fluid',
+  waveshaper: 'cymatic',
+  sequential: 'pianoRoll',
   ruleBasedHarmony: 'geometricObjects'
 };
 
@@ -103,6 +106,8 @@ export const visualizerSlice = createSlice({
           state.colorScheme = 'spectrum';
         } else if (algorithm === 'ruleBasedHarmony') {
           state.colorScheme = 'harmony';
+        } else if (algorithm === 'markov') {
+          state.colorScheme = 'spectrum';
         }
       }
     }

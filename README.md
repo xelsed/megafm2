@@ -40,6 +40,7 @@ A browser-based 3D music generation tool that interfaces with the MEGAfm hardwar
 - Multiple visualization modes for different algorithms
 - Customizable color schemes and visual parameters
 - Accessibility features for deaf/hard-of-hearing users
+- Modular visualization architecture for extensibility
 - **NEW**: VR-ready with stereoscopic rendering
 
 ### MEGAfm Hardware Integration
@@ -74,6 +75,19 @@ A browser-based 3D music generation tool that interfaces with the MEGAfm hardwar
 3. Put on your VR headset
 4. Use controllers or hand tracking to interact with the VR control panel
 5. Enjoy immersive 3D visualizations!
+
+## Architecture
+
+The application uses:
+- React and Vite for UI
+- Redux for state management
+- Three.js with React Three Fiber for 3D visualization
+- Web MIDI API for MIDI connectivity
+
+The visualizers follow a modular architecture:
+- Main visualizer components (CellularVisualizer, PianoRollVisualizer, etc.)
+- Shared utility components in subdirectories (e.g., /visualizers/cellular/)
+- Performance optimization for different devices
 
 ## MEGAfm Controls
 
@@ -114,6 +128,27 @@ A browser-based 3D music generation tool that interfaces with the MEGAfm hardwar
 ### Preset Management
 - Browse and select from 600 presets across 6 banks
 - Save and recall your own preset creations
+
+## Project Structure
+
+```
+/
+├── src/
+│   ├── algorithms/ - Music generation algorithms
+│   ├── audio/ - Audio system (MIDI + Web Audio)
+│   ├── components/ - UI components (including VR controls)
+│   ├── config/ - Configuration constants
+│   ├── midi/ - MIDI connection utilities
+│   ├── state/ - Redux state management
+│   ├── utils/ - Utility functions
+│   └── visualizers/ - Visual representations
+│       └── cellular/ - Cellular visualizer components
+│           ├── CellMaterial.jsx - Cell appearance and transitions
+│           ├── CellGrid.jsx - Grid layout and effects
+│           ├── HoverTooltip.jsx - Interactive tooltips
+│           └── CellularUtils.js - Helper functions
+└── public/ - Static assets
+```
 
 ## Future Improvements
 - Spatial audio in VR (3D sound positioning)

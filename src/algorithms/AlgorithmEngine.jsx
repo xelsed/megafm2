@@ -9,6 +9,7 @@ import CellularGenerator from './CellularGenerator';
 import HarmonyGenerator from './HarmonyGenerator';
 import SequentialGenerator from './SequentialGenerator';
 import WaveshaperGenerator from './WaveshaperGenerator';
+import MarkovGenerator from './MarkovGenerator';
 
 const AlgorithmEngine = () => {
   const dispatch = useDispatch();
@@ -39,6 +40,8 @@ const AlgorithmEngine = () => {
         return new SequentialGenerator(algorithms.sequential.parameters);
       case 'waveshaper':
         return new WaveshaperGenerator(algorithms.waveshaper.parameters);
+      case 'markov':
+        return new MarkovGenerator(algorithms.markov.parameters);
       case 'ruleBasedHarmony':
         return new HarmonyGenerator(algorithms.ruleBasedHarmony.parameters);
       default:
@@ -218,8 +221,15 @@ const AlgorithmEngine = () => {
     // The next animation frame will use the updated noteInterval value
     if (isPlaying) {
       console.log(`Updated playback timing to: ${noteInterval}ms (tempo: ${tempo}bpm)`);
+      
+      // When tempo changes, regenerate sequence for better sync
+      if (midiOutput) {
+        console.log("Regenerating sequence to match new tempo");
+        generateSequence();
+        stepIndexRef.current = 0;
+      }
     }
-  }, [tempo, noteInterval, isPlaying]);
+  }, [tempo, noteInterval, isPlaying, midiOutput, generateSequence]);
   
   // Regenerate the sequence when algorithm or parameters change
   useEffect(() => {

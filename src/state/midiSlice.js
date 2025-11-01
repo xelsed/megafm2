@@ -4,6 +4,7 @@ const initialState = {
   connected: false,
   output: null,
   input: null,
+  availableOutputs: [],
   activeNotes: [],
   errorMessage: null,
 };
@@ -12,6 +13,9 @@ export const midiSlice = createSlice({
   name: 'midi',
   initialState,
   reducers: {
+    midiDevicesDetected: (state, action) => {
+      state.availableOutputs = action.payload.outputs || [];
+    },
     midiConnected: (state, action) => {
       state.connected = true;
       state.output = action.payload.output;
@@ -25,6 +29,12 @@ export const midiSlice = createSlice({
     },
     midiError: (state, action) => {
       state.errorMessage = action.payload;
+    },
+    selectMidiOutput: (state, action) => {
+      state.output = action.payload.output;
+      state.input = action.payload.input;
+      state.connected = !!action.payload.output;
+      state.errorMessage = null;
     },
     noteOn: (state, action) => {
       const { note, velocity, column, row, state: noteState } = action.payload;
@@ -48,9 +58,11 @@ export const midiSlice = createSlice({
 });
 
 export const { 
+  midiDevicesDetected,
   midiConnected, 
   midiDisconnected, 
-  midiError, 
+  midiError,
+  selectMidiOutput,
   noteOn, 
   noteOff, 
   clearNotes 

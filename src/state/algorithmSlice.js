@@ -26,21 +26,35 @@ const initialState = {
       enabled: false,
       parameters: {
         rule: 30,                 // Cellular automaton rule (0-255) for 1D mode
-        type: '1D',               // Type of cellular automaton: '1D' or 'gameOfLife'
-        initialCondition: 'center', // Initial state: center, random, custom, glider, etc.
+        type: 'gameOfLife',       // Type of cellular automaton: '1D' or 'gameOfLife'
+        initialCondition: 'cross', // Initial state: using cross as default for better visibility
         width: 16,                // Width of the automaton grid
         height: 16,               // Height for 2D grid (Game of Life)
         threshold: 0.5,           // Threshold for converting cells to notes
         iterations: 32,           // Number of iterations to evolve the automaton
-        density: 0.3,             // Initial cell density for random patterns
-        velocityMap: 'linear',    // How to map cell position to velocity: linear, distance, random
+        density: 0.5,             // Initial cell density for random patterns (increased)
+        velocityMap: 'distance',  // How to map cell position to velocity: linear, distance, random
         harmonies: true,          // Whether to generate harmony notes
         emphasizeBirths: true,    // Whether to emphasize newly born cells with higher velocity
         noteRange: 'mid',         // Pitch range: low, mid, high
         scale: 'pentatonic',      // Musical scale to use for mapping
-        performanceMode: 'auto',  // Performance level: low, medium, high, auto
-        buchlaMode: false,        // Buchla 252e-inspired sequencing mode
-        preferredPatterns: ['buchla']  // Preferred patterns for initialization
+        performanceMode: 'high',  // Performance level: low, medium, high, auto
+        buchlaMode: true,         // Buchla 252e-inspired sequencing mode
+        preferredPatterns: ['cross', 'glider', 'blinker']  // Preferred patterns for initialization
+      }
+    },
+    markov: {
+      enabled: false,
+      parameters: {
+        order: 1,                // Markov chain order (context length)
+        length: 16,              // Sequence length
+        baseNote: 60,            // Base note (middle C)
+        scale: 'major',          // Scale to quantize notes to
+        density: 0.8,            // Note density
+        octaveRange: 2,          // Range in octaves
+        patternType: 'melody',   // melody, rhythm, harmony
+        learningPattern: 'ascendDescend', // Pattern to learn from
+        randomness: 0.3          // Amount of randomness to inject
       }
     },
     sequential: {
@@ -91,6 +105,9 @@ const initialState = {
   availableScales: [
     'major', 'minor', 'pentatonic', 'blues', 'chromatic',
     'wholetone', 'diminished', 'harmonicminor', 'dorian'
+  ],
+  availableLearningPatterns: [
+    'ascendDescend', 'jazzChords', 'pentatonic', 'fibonacci'
   ]
 };
 
@@ -111,7 +128,9 @@ export const algorithmSlice = createSlice({
     },
     setTempo: (state, action) => {
       state.tempo = action.payload;
-      state.noteInterval = 60000 / action.payload / 4; // 16th notes
+      // Calculate noteInterval using quarter notes instead of 16th notes for better timing
+      state.noteInterval = Math.round(60000 / action.payload); // quarter notes
+      console.log(`Tempo set to ${action.payload} BPM, note interval: ${state.noteInterval}ms`);
     },
     setPlaying: (state, action) => {
       state.isPlaying = action.payload;

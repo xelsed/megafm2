@@ -464,7 +464,7 @@ const ControlPanel = () => {
             </div>
             
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '15px' }}>
-              {['fractal', 'euclidean', 'cellular', 'sequential', 'waveshaper', 'ruleBasedHarmony'].map(algo => (
+              {['fractal', 'euclidean', 'cellular', 'markov', 'sequential', 'waveshaper', 'ruleBasedHarmony'].map(algo => (
                 <button
                   key={algo}
                   onClick={() => dispatch(setCurrentAlgorithm(algo))}
@@ -478,6 +478,7 @@ const ControlPanel = () => {
                   {algo === 'fractal' && '🌀 Fractal'}
                   {algo === 'euclidean' && '⚙️ Euclidean'}
                   {algo === 'cellular' && '🧬 Cellular'}
+                  {algo === 'markov' && '🎲 Markov'}
                   {algo === 'sequential' && '📊 Sequential'}
                   {algo === 'waveshaper' && '〰️ Waveshaper'}
                   {algo === 'ruleBasedHarmony' && '🎹 Harmony'}
@@ -976,6 +977,117 @@ const ControlPanel = () => {
                       <option value="7/8">7/8</option>
                       <option value="5/8">5/8</option>
                       <option value="complex">Complex</option>
+                    </select>
+                  </div>
+                </>
+              )}
+
+              {currentAlgorithm === 'markov' && (
+                <>
+                  <div style={glowStyles.controlRow}>
+                    <span style={glowStyles.label}>Pattern Type:</span>
+                    <select
+                      value={algorithms.markov.parameters.patternType}
+                      onChange={(e) => handleParameterChange('markov', 'patternType', e.target.value)}
+                      style={{
+                        background: 'rgba(30, 30, 50, 0.8)',
+                        color: 'white',
+                        border: '1px solid #8e2de2',
+                        borderRadius: '4px',
+                        padding: '5px 10px'
+                      }}
+                    >
+                      <option value="melody">Melody</option>
+                      <option value="harmony">Harmony</option>
+                      <option value="rhythm">Rhythm</option>
+                    </select>
+                  </div>
+
+                  <div style={glowStyles.controlRow}>
+                    <span style={glowStyles.label}>Learning Pattern:</span>
+                    <select
+                      value={algorithms.markov.parameters.learningPattern}
+                      onChange={(e) => handleParameterChange('markov', 'learningPattern', e.target.value)}
+                      style={{
+                        background: 'rgba(30, 30, 50, 0.8)',
+                        color: 'white',
+                        border: '1px solid #8e2de2',
+                        borderRadius: '4px',
+                        padding: '5px 10px'
+                      }}
+                    >
+                      <option value="ascendDescend">Ascend/Descend</option>
+                      <option value="jazzChords">Jazz Chords</option>
+                      <option value="pentatonic">Pentatonic</option>
+                      <option value="fibonacci">Fibonacci</option>
+                    </select>
+                  </div>
+
+                  <div style={glowStyles.controlRow}>
+                    <span style={glowStyles.label}>Order:</span>
+                    <input
+                      type="range"
+                      min="1"
+                      max="3"
+                      value={algorithms.markov.parameters.order}
+                      onChange={(e) => handleParameterChange('markov', 'order', parseInt(e.target.value, 10))}
+                      style={glowStyles.slider}
+                    />
+                    <span style={glowStyles.value}>{algorithms.markov.parameters.order}</span>
+                  </div>
+
+                  <div style={glowStyles.controlRow}>
+                    <span style={glowStyles.label}>Randomness:</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value={algorithms.markov.parameters.randomness}
+                      onChange={(e) => handleParameterChange('markov', 'randomness', parseFloat(e.target.value))}
+                      style={glowStyles.slider}
+                    />
+                    <span style={glowStyles.value}>
+                      {Math.round(algorithms.markov.parameters.randomness * 100)}%
+                    </span>
+                  </div>
+
+                  <div style={glowStyles.controlRow}>
+                    <span style={glowStyles.label}>Density:</span>
+                    <input
+                      type="range"
+                      min="0.1"
+                      max="1"
+                      step="0.05"
+                      value={algorithms.markov.parameters.density}
+                      onChange={(e) => handleParameterChange('markov', 'density', parseFloat(e.target.value))}
+                      style={glowStyles.slider}
+                    />
+                    <span style={glowStyles.value}>
+                      {Math.round(algorithms.markov.parameters.density * 100)}%
+                    </span>
+                  </div>
+                  
+                  <div style={glowStyles.controlRow}>
+                    <span style={glowStyles.label}>Scale:</span>
+                    <select
+                      value={algorithms.markov.parameters.scale}
+                      onChange={(e) => handleParameterChange('markov', 'scale', e.target.value)}
+                      style={{
+                        background: 'rgba(30, 30, 50, 0.8)',
+                        color: 'white',
+                        border: '1px solid #8e2de2',
+                        borderRadius: '4px',
+                        padding: '5px 10px'
+                      }}
+                    >
+                      <option value="major">Major</option>
+                      <option value="minor">Minor</option>
+                      <option value="pentatonic">Pentatonic</option>
+                      <option value="blues">Blues</option>
+                      <option value="chromatic">Chromatic</option>
+                      <option value="dorian">Dorian</option>
+                      <option value="harmonicminor">Harmonic Minor</option>
                     </select>
                   </div>
                 </>

@@ -923,8 +923,6 @@ class CellularGenerator {
     height = Math.min(height, 100);
     
     try {
-      console.log(`Creating Game of Life pattern: ${pattern} with dimensions ${width}x${height}`);
-      
       switch (pattern) {
         case 'random':
           // Random distribution of cells
@@ -938,60 +936,21 @@ class CellularGenerator {
         case 'glider':
           // Add a glider in the top-left corner
           if (width >= 5 && height >= 5) {
-            // Add multiple gliders to ensure visibility
-            const positions = [
-              // Top-left
-              [1, 2, 2, 3, 3, 1, 3, 2, 3, 3],
-              // Bottom-right
-              [height-4, width-3, height-3, width-2, height-2, width-4, height-2, width-3, height-2, width-2],
-              // Center
-              [Math.floor(height/2), Math.floor(width/2)+1, 
-               Math.floor(height/2)+1, Math.floor(width/2)+2, 
-               Math.floor(height/2)+2, Math.floor(width/2), 
-               Math.floor(height/2)+2, Math.floor(width/2)+1, 
-               Math.floor(height/2)+2, Math.floor(width/2)+2]
-            ];
-            
-            // Place each glider
-            for (const pos of positions) {
-              if (pos[0] < height && pos[1] < width && 
-                  pos[2] < height && pos[3] < width && 
-                  pos[4] < height && pos[5] < width && 
-                  pos[6] < height && pos[7] < width && 
-                  pos[8] < height && pos[9] < width) {
-                grid[pos[0]][pos[1]] = 1;
-                grid[pos[2]][pos[3]] = 1;
-                grid[pos[4]][pos[5]] = 1;
-                grid[pos[6]][pos[7]] = 1;
-                grid[pos[8]][pos[9]] = 1;
-              }
-            }
+            grid[1][2] = 1;
+            grid[2][3] = 1;
+            grid[3][1] = 1;
+            grid[3][2] = 1;
+            grid[3][3] = 1;
           }
           break;
           
         case 'blinker':
-          // Add multiple blinkers at different locations
+          // Add a blinker (oscillator)
           const centerX = Math.floor(width / 2);
           const centerY = Math.floor(height / 2);
-          
-          // Center blinker
           grid[centerY][centerX - 1] = 1;
           grid[centerY][centerX] = 1;
           grid[centerY][centerX + 1] = 1;
-          
-          // Top-left blinker
-          if (centerY > 5 && centerX > 5) {
-            grid[centerY - 5][centerX - 5] = 1;
-            grid[centerY - 5][centerX - 4] = 1;
-            grid[centerY - 5][centerX - 3] = 1;
-          }
-          
-          // Bottom-right blinker
-          if (centerY + 5 < height && centerX + 5 < width) {
-            grid[centerY + 5][centerX + 3] = 1;
-            grid[centerY + 5][centerX + 4] = 1;
-            grid[centerY + 5][centerX + 5] = 1;
-          }
           break;
           
         case 'pulsar':
@@ -1181,46 +1140,20 @@ class CellularGenerator {
           }
           break;
           
-        case 'cross':
         default:
           // Create a simple cross shape in the center
           const cx = Math.floor(width / 2);
           const cy = Math.floor(height / 2);
-          
-          // Make the cross larger and more visible
           grid[cy][cx] = 1;
           grid[cy-1][cx] = 1;
-          grid[cy-2][cx] = 1;
           grid[cy+1][cx] = 1;
-          grid[cy+2][cx] = 1;
           grid[cy][cx-1] = 1;
-          grid[cy][cx-2] = 1;
           grid[cy][cx+1] = 1;
-          grid[cy][cx+2] = 1;
-          
-          // Add a few more cells to make it more interesting
-          grid[cy-1][cx-1] = 1;
-          grid[cy+1][cx+1] = 1;
-          grid[cy-1][cx+1] = 1;
-          grid[cy+1][cx-1] = 1;
       }
       
       // Apply Buchla mode modifications if enabled
       if (this.parameters.buchlaMode && pattern !== 'buchla') {
         this.applyBuchlaModifications(grid, width, height);
-      }
-      
-      // Check if grid is too empty and add more cells if needed
-      const cellCount = this.countCells(grid);
-      if (cellCount < 10) {
-        console.log(`Adding more cells because pattern ${pattern} only has ${cellCount} cells`);
-        // Add some random cells to ensure activity
-        const additionalCells = Math.max(15, Math.floor(width * height * 0.05));
-        for (let i = 0; i < additionalCells; i++) {
-          const rx = Math.floor(Math.random() * width);
-          const ry = Math.floor(Math.random() * height);
-          grid[ry][rx] = 1;
-        }
       }
       
       return grid;
