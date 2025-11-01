@@ -1,6 +1,32 @@
 # MEGAfm Music Generator
 
-A browser-based 3D music generation tool that interfaces with the MEGAfm hardware synthesizer, offering algorithmic music generation with immersive visualization.
+A browser-based 3D music generation tool that interfaces with the MEGAfm hardware synthesizer, offering algorithmic music generation with immersive visualization. **Now with VR support and Android compatibility!**
+
+## 🆕 New Features (v2.0)
+
+### 🥽 VR Support
+- **Full WebXR Integration**: Experience generative music in virtual reality
+- **VR Controllers**: Interact with controls using hand tracking or controllers
+- **Immersive Visualizations**: All visualization modes work in stereoscopic 3D
+- **Supported Devices**: Meta Quest, PC VR (SteamVR), and any WebXR-compatible headset
+
+### 📱 Android Support (No MIDI Required)
+- **Web Audio Fallback**: Built-in FM synthesizer for mobile devices
+- **4-Operator FM Synthesis**: Professional sound without hardware
+- **8 FM Algorithms**: Multiple operator routing configurations
+- **12-Voice Polyphony**: Full multi-note support on Android/iOS
+- **Automatic Detection**: Seamlessly switches between MIDI hardware and Web Audio
+
+### 🎨 Code Quality Improvements
+- Organized utility modules for audio functions
+- Centralized configuration management
+- Enhanced error handling and validation
+- Better documentation and code comments
+- Performance optimizations for mobile and VR
+
+**See [FEATURES.md](./FEATURES.md) for detailed documentation of new features.**
+
+---
 
 ## Features
 
@@ -14,6 +40,7 @@ A browser-based 3D music generation tool that interfaces with the MEGAfm hardwar
 - Multiple visualization modes for different algorithms
 - Customizable color schemes and visual parameters
 - Accessibility features for deaf/hard-of-hearing users
+- **NEW**: VR-ready with stereoscopic rendering
 
 ### MEGAfm Hardware Integration
 - Comprehensive control of all MEGAfm synthesis parameters
@@ -23,14 +50,30 @@ A browser-based 3D music generation tool that interfaces with the MEGAfm hardwar
 - MPE (MIDI Polyphonic Expression) support
 - Preset browsing and management
 - Algorithm visualization with interactive diagrams
+- **NEW**: Automatic fallback to Web Audio when hardware unavailable
 
 ## Getting Started
 
-1. Connect your MEGAfm synthesizer via MIDI
-2. Start the application
-3. Select an algorithm and adjust parameters
-4. Use the visualization controls to customize the visual representation
-5. Explore the MEGAfm tabs to access advanced synthesis features
+### Desktop with MEGAfm Hardware
+1. Connect your MEGAfm synthesizer via USB MIDI
+2. Open the application in Chrome, Firefox, or Edge
+3. Grant MIDI permissions when prompted
+4. Select an algorithm and adjust parameters
+5. Use the visualization controls to customize the visual representation
+6. Explore the MEGAfm tabs to access advanced synthesis features
+
+### Mobile / Without MIDI Hardware
+1. Open the application in your mobile browser (Chrome recommended)
+2. The app will automatically use the built-in Web Audio synthesizer
+3. Press the PLAY button to start generating music
+4. All features work without hardware!
+
+### VR Mode
+1. Use a WebXR-compatible browser (Quest Browser, Chrome, Edge)
+2. Click the "Enter VR" button at the bottom of the screen
+3. Put on your VR headset
+4. Use controllers or hand tracking to interact with the VR control panel
+5. Enjoy immersive 3D visualizations!
 
 ## MEGAfm Controls
 
@@ -73,17 +116,24 @@ A browser-based 3D music generation tool that interfaces with the MEGAfm hardwar
 - Save and recall your own preset creations
 
 ## Future Improvements
+- Spatial audio in VR (3D sound positioning)
+- Hand gesture controls for VR parameter manipulation
 - Complete visualizations for all 8 FM algorithms
-- Add real-time operator level visualization
-- Add spectrum analyzer for harmonic content
-- Implement MIDI SysEx for preset backup/restore
-- Enhanced collaboration features
+- Real-time operator level visualization
+- Spectrum analyzer for harmonic content
+- MIDI SysEx for preset backup/restore
+- Multi-user VR collaboration
+- Enhanced mobile touch controls
 
 ## Technical Details
-- Built with React, Redux, and Three.js
-- Uses Web MIDI API for hardware communication
-- Implements cellular automata, fractal algorithms, and other generative techniques
-- 3D rendering with customizable visual elements for each musical parameter
+- **Frontend**: React 19, Redux Toolkit
+- **3D Graphics**: Three.js, React-Three-Fiber, React-Three-Drei
+- **VR**: React-Three/XR (WebXR API)
+- **Audio**: Web MIDI API (hardware) + Web Audio API (software fallback)
+- **Build**: Vite
+- **Synthesis**: 4-operator FM synthesis (hardware or software)
+- **Algorithms**: Cellular automata, fractal algorithms, Euclidean rhythms, and more
+- **Rendering**: Customizable 3D visualizations with adaptive performance
 
 ## Accessibility
 
