@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { noteOn, noteOff, clearNotes } from '../state/midiSlice';
 import { sendNoteOn, sendNoteOff, sendAllNotesOff, MEGAFM_CHANNEL } from '../midi/midiUtils';
+import AudioManager from '../audio/AudioManager';
 import FractalGenerator from './FractalGenerator';
 import EuclideanGenerator from './EuclideanGenerator';
 import CellularGenerator from './CellularGenerator';
@@ -18,12 +19,13 @@ const AlgorithmEngine = () => {
   const isPlaying = useSelector(state => state.algorithm.isPlaying);
   const tempo = useSelector(state => state.algorithm.tempo);
   const noteInterval = useSelector(state => state.algorithm.noteInterval);
-  
+
   // References to keep track of timers and sequences
   const timerRef = useRef(null);
   const sequenceRef = useRef([]);
   const stepIndexRef = useRef(0);
   const activeNotesRef = useRef(new Set());
+  const audioInitialized = useRef(false);
   
   // Load the appropriate generator based on the algorithm
   const getGenerator = () => {
@@ -56,59 +58,80 @@ const AlgorithmEngine = () => {
     return sequence;
   };
   
+  // Initialize AudioManager when MIDI output changes
+  useEffect(() => {
+    const initAudio = async () => {
+      const result = await AudioManager.initialize(midiOutput);
+      if (result.success) {
+        audioInitialized.current = true;
+        console.log(`AudioManager initialized in ${result.mode} mode`);
+      }
+    };
+
+    initAudio();
+  }, [midiOutput]);
+
   // Play the next step in the sequence
   const playNextStep = () => {
-    if (!midiOutput || !isPlaying || sequenceRef.current.length === 0) return;
-    
+    if (!isPlaying || sequenceRef.current.length === 0) return;
+
+    // Initialize audio if not already done (for Web Audio mode on first user interaction)
+    if (!audioInitialized.current) {
+      AudioManager.initialize(midiOutput).then(result => {
+        if (result.success) {
+          audioInitialized.current = true;
+          console.log(`AudioManager initialized in ${result.mode} mode`);
+        }
+      });
+      return;
+    }
+
     const sequence = sequenceRef.current;
     const stepIndex = stepIndexRef.current;
     const step = sequence[stepIndex];
-    
+
     // Stop any currently playing notes
     activeNotesRef.current.forEach(note => {
-      sendNoteOff(midiOutput, note);
+      AudioManager.noteOff(note, MEGAFM_CHANNEL);
       dispatch(noteOff({ note }));
     });
     activeNotesRef.current.clear();
-    
+
     // Play the notes for this step
     if (step && step.notes) {
       step.notes.forEach(note => {
         const velocity = note.velocity || 100;
-        
+
         try {
-          // Send note on with properly normalized attack value (0-1 instead of 0-127)
-          // MegaFM requires attack value in range 0-1 for WebMidi
-          const normalizedAttack = Math.min(1, Math.max(0, velocity / 127));
-          
-          // Set the appropriate MIDI channel (MegaFM uses channel 1)
-          const midiChannel = MEGAFM_CHANNEL; // From midiUtils.js
-          
-          // Send the normalized MIDI note to the MegaFM
-          midiOutput.channels[midiChannel].sendNoteOn(note.pitch, { attack: normalizedAttack });
-          
+          // Normalize velocity to 0-1 range
+          const normalizedVelocity = Math.min(1, Math.max(0, velocity / 127));
+
+          // Use AudioManager (handles both MIDI and Web Audio)
+          AudioManager.noteOn(note.pitch, normalizedVelocity, MEGAFM_CHANNEL);
+
           // Track note state in Redux
-          dispatch(noteOn({ 
-            note: note.pitch, 
+          dispatch(noteOn({
+            note: note.pitch,
             velocity,
             column: note.column,
             row: note.row,
-            state: note.state || 'active' 
+            state: note.state || 'active'
           }));
-          
+
           // Track active notes for release later
           activeNotesRef.current.add(note.pitch);
-          
+
           // Only log occasionally to reduce console spam
           if (note.pitch % 10 === 0 || note.state === 'birth') {
-            console.log(`Note On: ${note.pitch}, Attack: ${normalizedAttack.toFixed(2)}, Velocity: ${velocity}, State: ${note.state || 'active'}, Channel: ${midiChannel}`);
+            const status = AudioManager.getStatus();
+            console.log(`Note On: ${note.pitch}, Velocity: ${normalizedVelocity.toFixed(2)}, State: ${note.state || 'active'}, Mode: ${status.mode}`);
           }
         } catch (error) {
           console.error(`Failed to send Note On for pitch ${note.pitch}:`, error.message);
         }
       });
     }
-    
+
     // Advance to the next step or loop back
     stepIndexRef.current = (stepIndexRef.current + 1) % sequence.length;
   };
@@ -173,14 +196,12 @@ const AlgorithmEngine = () => {
       }
       
       // Turn off any active notes
-      if (midiOutput) {
-        try {
-          sendAllNotesOff(midiOutput);
-          activeNotesRef.current.clear();
-          dispatch(clearNotes());
-        } catch (error) {
-          console.warn("Error stopping playback:", error.message);
-        }
+      try {
+        AudioManager.allNotesOff();
+        activeNotesRef.current.clear();
+        dispatch(clearNotes());
+      } catch (error) {
+        console.warn("Error stopping playback:", error.message);
       }
     }
     
@@ -227,22 +248,20 @@ const AlgorithmEngine = () => {
         cancelAnimationFrame(timerRef.current);
         timerRef.current = null;
       }
-      
-      if (midiOutput) {
-        try {
-          sendAllNotesOff(midiOutput);
-          
-          // Clear the active notes reference to ensure no orphaned notes
-          if (activeNotesRef.current.size > 0) {
-            activeNotesRef.current.clear();
-            dispatch(clearNotes());
-          }
-        } catch (error) {
-          console.warn("Error cleaning up MIDI notes:", error.message);
+
+      try {
+        AudioManager.allNotesOff();
+
+        // Clear the active notes reference to ensure no orphaned notes
+        if (activeNotesRef.current.size > 0) {
+          activeNotesRef.current.clear();
+          dispatch(clearNotes());
         }
+      } catch (error) {
+        console.warn("Error cleaning up audio:", error.message);
       }
     };
-  }, [midiOutput, dispatch]);
+  }, [dispatch]);
   
   // This component doesn't render anything visible
   return null;
