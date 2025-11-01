@@ -50,7 +50,17 @@ const Visualizer = () => {
   // Get tempo from Redux store - must be outside useFrame to follow React hooks rules
   const tempo = useSelector(state => state.algorithm?.tempo || 120);
   
+  // Performance monitoring state
+  const [perfLevel, setPerfLevel] = useState('medium'); // low, medium, high
+  const performanceMode = useSelector(state => state.visualizer?.renderQuality || 'high');
+  const frameTimesRef = useRef([]);
+  const lastFrameTimeRef = useRef(0);
+  const frameCountRef = useRef(0);
+  const [fps, setFps] = useState(60);
+  const [dynamicPerformanceEnabled, setDynamicPerformanceEnabled] = useState(true);
+  
   // Handle auto-rotation and tempo synchronization of the visualization
+  // Also handle performance monitoring
   useFrame((state, delta) => {
     if (!groupRef.current) return;
     
@@ -78,6 +88,50 @@ const Visualizer = () => {
       delta: normalizedDelta,
       time: state.clock.elapsedTime
     };
+    
+    // Performance monitoring
+    if (dynamicPerformanceEnabled) {
+      const now = performance.now();
+      
+      if (lastFrameTimeRef.current) {
+        const frameTime = now - lastFrameTimeRef.current;
+        frameTimesRef.current.push(frameTime);
+        
+        // Keep only the last 60 frames for averaging
+        if (frameTimesRef.current.length > 60) {
+          frameTimesRef.current.shift();
+        }
+        
+        // Calculate average FPS every 30 frames to avoid too frequent updates
+        frameCountRef.current++;
+        if (frameCountRef.current % 30 === 0) {
+          const avgFrameTime = frameTimesRef.current.reduce((a, b) => a + b, 0) / frameTimesRef.current.length;
+          const currentFps = Math.round(1000 / avgFrameTime);
+          setFps(currentFps);
+          
+          // Adjust performance level based on frame rate, but only if user hasn't explicitly set it
+          if (performanceMode === 'auto') {
+            // Low performance if under 30 FPS
+            if (currentFps < 30 && perfLevel !== 'low') {
+              console.log(`Performance degradation detected (${currentFps} FPS), switching to low quality`);
+              setPerfLevel('low');
+            } 
+            // Medium performance between 30-50 FPS
+            else if (currentFps >= 30 && currentFps < 50 && perfLevel !== 'medium') {
+              console.log(`Medium performance detected (${currentFps} FPS)`);
+              setPerfLevel('medium');
+            } 
+            // High performance above 50 FPS
+            else if (currentFps >= 50 && perfLevel !== 'high') {
+              console.log(`High performance detected (${currentFps} FPS), enabling high quality`);
+              setPerfLevel('high');
+            }
+          }
+        }
+      }
+      
+      lastFrameTimeRef.current = now;
+    }
   });
   
   // Dynamic camera settings based on visualizer type
@@ -107,6 +161,12 @@ const Visualizer = () => {
         newPosition = { x: 0, y: 0, z: 12 };
     }
     
+    // Clear any existing animation
+    const animationId = groupRef.current?.userData?.cameraAnimationId;
+    if (animationId) {
+      cancelAnimationFrame(animationId);
+    }
+    
     // Smoothly transition camera
     const startPos = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
     const duration = 1.5; // seconds
@@ -128,11 +188,32 @@ const Visualizer = () => {
       camera.lookAt(0, 0, 0);
       
       if (progress < 1) {
-        requestAnimationFrame(animateCamera);
+        const id = requestAnimationFrame(animateCamera);
+        // Store animation ID for cleanup
+        if (groupRef.current) {
+          groupRef.current.userData = {
+            ...groupRef.current.userData,
+            cameraAnimationId: id
+          };
+        }
+      } else if (groupRef.current) {
+        // Clear animation ID when done
+        groupRef.current.userData = {
+          ...groupRef.current.userData,
+          cameraAnimationId: null
+        };
       }
     };
     
     animateCamera();
+    
+    // Clean up any ongoing camera animation on unmount or mode change
+    return () => {
+      const animId = groupRef.current?.userData?.cameraAnimationId;
+      if (animId) {
+        cancelAnimationFrame(animId);
+      }
+    };
   }, [visualizationMode, camera]);
   
   // Coordinate visualization speed with algorithm tempo
@@ -156,21 +237,23 @@ const Visualizer = () => {
     }
   }, [currentAlgorithm, visualizationMode]);
   
-  // Performance settings
-  const [perfLevel, setPerfLevel] = useState('medium'); // low, medium, high
-  const performanceMode = useSelector(state => state.visualizer?.renderQuality || 'high');
-  
   // Set performance level based on state or detect on first render
   useEffect(() => {
-    if (performanceMode !== perfLevel) {
+    // If user explicitly set a performance level, use that
+    if (performanceMode !== 'auto') {
       setPerfLevel(performanceMode);
-    } else if (perfLevel === 'medium') {
-      // Auto-detect performance level on first render if not explicitly set
+      // Disable dynamic performance adjustment for explicit settings
+      setDynamicPerformanceEnabled(false);
+    } else {
+      // Enable dynamic performance adjustment for auto mode
+      setDynamicPerformanceEnabled(true);
+      
+      // Initial detection for auto mode
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       const isLowPerfDevice = isMobile || (window.innerWidth <= 1024);
-      setPerfLevel(isLowPerfDevice ? 'low' : 'high');
+      setPerfLevel(isLowPerfDevice ? 'low' : 'medium');
     }
-  }, [performanceMode, perfLevel]);
+  }, [performanceMode]);
   
   // Memoize active notes to prevent unnecessary re-renders
   const memoizedActiveNotes = useMemo(() => activeNotes, 
@@ -196,7 +279,7 @@ const Visualizer = () => {
     }
   }, [visualizationMode]);
   
-  // Adaptive performance settings
+  // Adaptive performance settings based on detected performance level
   const particleCount = useMemo(() => {
     switch (perfLevel) {
       case 'low': return 500;
@@ -206,11 +289,33 @@ const Visualizer = () => {
     }
   }, [perfLevel]);
   
-  // Render the appropriate visualizer based on the selected mode
+  const maxGeometricObjects = useMemo(() => {
+    switch (perfLevel) {
+      case 'low': return 50;
+      case 'medium': return 150;
+      case 'high': return 300;
+      default: return 150;
+    }
+  }, [perfLevel]);
+  
+  // Pass performance level and particle count to child components
+  const visualizerProps = useMemo(() => ({
+    notes: memoizedActiveNotes,
+    perfLevel,
+    particleCount,
+    maxGeometricObjects,
+    tempo,
+    colorScheme,
+    currentAlgorithm
+  }), [memoizedActiveNotes, perfLevel, particleCount, maxGeometricObjects, tempo, colorScheme, currentAlgorithm]);
+  
+  // Debug info for development
+  const showDebugInfo = process.env.NODE_ENV === 'development';
+  
   return (
     <Suspense fallback={null}>
       {/* Performance monitor - only in development */}
-      {process.env.NODE_ENV === 'development' && (
+      {showDebugInfo && (
         <Stats showPanel={0} className="stats-panel" />
       )}
       
